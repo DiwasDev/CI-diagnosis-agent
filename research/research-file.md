@@ -44,8 +44,6 @@ Build and test a small agent that, given incomplete evidence from a CI run, choo
 - **@KLieret** (Kilian Lieret) — SWE-agent co-author, benchmark construction
 - **@Mark_Harman** — UCL/ex-Meta, search-based software testing pioneer (real, but low X activity — don't expect replies)
 
-Note: could not verify live X handles for the flaky-test/test-selection academics most directly on-topic (Spieker, Marijan, Fraser, Gruber) — their papers are cited below, but don't guess a handle from a name.
-
 ## 5 useful papers/datasets
 1. Spieker, Gotlieb, Marijan, Mossige — "Reinforcement Learning for Automatic Test Case Prioritization and Selection in Continuous Integration" (ISSTA 2017)
 2. Machalica, Samylkin, Porth, Chandra — "Predictive Test Selection" (Facebook, ICSE-SEIP 2019) — real production cost-asymmetric thresholds
