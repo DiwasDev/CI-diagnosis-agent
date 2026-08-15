@@ -1,110 +1,67 @@
-# Problem Statement
+# Research File — CI Diagnosis Agent
 
-> The agent observes a failing CI pipeline, forms mutually exclusive hypotheses, and provides the user with a possible diagnosis if it is confident.
+## Problem statement
+The agent observes a failing CI run (failing test IDs, logs, diff/commit, recent test-history). It must select the next diagnostic action because whether the failure is a real regression, flaky, an environment fault, or another cause is not known.
 
-## Research Goals
+## Project objective
+Build and test a small agent that, given incomplete evidence from a CI run, chooses the next diagnostic action (ask for more evidence, or recommend a specific fix) — not a one-shot classifier — modeled as sequential decision-making under partial observability (POMDP).
 
-- Gather information about the causes of failing CI runs and determine the hidden states of the agent.
-- Know what the agent needs to observe to reduce its uncertainty.
-- Determine what actions it can take.
-- Determine suitable policies that lead to those actions.
+## Technical terminology
+- **CI (Continuous Integration):** automated build/test on every commit.
+- **Flaky test:** fails/passes on unchanged code — the result carries no information about correctness.
+- **POMDP:** decision framework where the true state isn't directly observable, only evidence about it.
+- **Hidden state / belief state:** the unobserved cause; a probability distribution over possible causes.
+- **Factored belief state:** hidden state as several independent-ish variables instead of one exclusive category — needed because causes can co-occur.
+- **Noisy-OR:** compact model for combining multiple non-exclusive causes without a full joint table.
+- **Value of Information (VoI):** expected reduction in loss from gathering more evidence, minus the cost of gathering it.
+- **Threshold policy:** act above a confidence threshold, gather evidence in a middle band, withhold below it — thresholds set by cost ratios, not fixed.
+- **Explaining away:** confirming one sufficient cause lowers belief in competing causes.
 
-## Research Methods
+## Search queries
+- predictive test selection continuous integration
+- reinforcement learning test case prioritization
+- flaky test detection machine learning
+- root cause analysis CI pipeline failure multiple causes
+- factored POMDP sparse belief state
+- value of information decision theory
+- GitHub Actions REST API workflow logs
+- TravisTorrent CI dataset
 
-- Research papers
-- Reddit discussions
-- Blog posts and indie developer opinions
+## Reddit communities (verified active)
+| Subreddit | Why |
+|---|---|
+| r/ExperiencedDevs | Senior engineers who've owned a CI pipeline — real cost tradeoffs |
+| r/devops | Broadest home for CI/CD pipeline pain |
+| r/softwaretesting | Most directly on-topic — testers/QA |
+| r/SoftwareEngineering | Theory/architecture framing questions |
+| r/MachineLearning | RL/POMDP/belief-state side (strict on self-promotion — post substance only) |
+| r/mlops | Production-agent framing, closest to existing professional identity |
+| r/ComputerScience | Definitional questions (is POMDP the right model here) |
+| r/programming | High-traffic, general technical audience |
 
-## Research Findings
+## Relevant X accounts (verified real, active)
+- **@jyangballin** (John Yang) — creator of SWE-bench/SWE-agent; AI agents acting on real repos
+- **@KLieret** (Kilian Lieret) — SWE-agent co-author, benchmark construction
+- **@Mark_Harman** — UCL/ex-Meta, search-based software testing pioneer (real, but low X activity — don't expect replies)
 
-### From Research Papers
+Note: could not verify live X handles for the flaky-test/test-selection academics most directly on-topic (Spieker, Marijan, Fraser, Gruber) — their papers are cited below, but don't guess a handle from a name.
 
-**1. LogSage** ([arxiv.org/abs/2506.03691](https://arxiv.org/abs/2506.03691?utm_source=chatgpt.com))
+## 5 useful papers/datasets
+1. Spieker, Gotlieb, Marijan, Mossige — "Reinforcement Learning for Automatic Test Case Prioritization and Selection in Continuous Integration" (ISSTA 2017)
+2. Machalica, Samylkin, Porth, Chandra — "Predictive Test Selection" (Facebook, ICSE-SEIP 2019) — real production cost-asymmetric thresholds
+3. Haben, Habchi, Papadakis, Cordy, Le Traon — "The Importance of Discerning Flaky from Fault-triggering Test Failures" (Chromium case study, arXiv:2302.10594) — evidence hidden states are non-exclusive
+4. Pauker & Kassirer — "The Threshold Approach to Clinical Decision Making" (NEJM, 1980) — the structural template for the act/gather/withhold policy
+5. TravisTorrent (Beller et al.) — ~2.6M labeled Travis CI builds; useful for the failure-taxonomy, not directly for GitHub Actions-specific test cases (platform mismatch — flagged, not silently reused)
 
-- **Findings:** Dumping every piece of information into an LLM wastes tokens and increases hallucination.
-- **Impact on design:** The agent should choose evidence based on uncertainty reduction.
+## Questions I wanted to answer
+- What exactly counts as "a CI failure" — test assertion, build step, infra, or flakiness — and does the answer change the agent design?
+- Is the action space just "select next test," or does it include rerun/bisect/escalate?
+- What's the actual evaluation metric — tests-to-diagnosis, cost-weighted error, time-to-signal?
+- Where do labeled cases come from without a real company/CI history?
+- How should non-mutually-exclusive hidden states be represented without the joint blowing up (2^N)?
+- Without real cost data, how are expected-loss/VoI numbers grounded rather than guessed?
 
-**2. A Tale of CI Build Failures: An Open Source and a Financial Organization Perspective** ([research.tudelft.nl](https://research.tudelft.nl/en/publications/a-tale-of-ci-build-failures-an-open-source-and-a-financial-organi/))
-
-- **Findings:** CI build failures occur across many different failure categories, including testing, compilation, dependencies, deployment, release preparation, and infrastructure. The study analyzed 34,182 failing builds across open-source and industrial organizations.
-- **Impact on design:** The agent should maintain multiple candidate explanations for a CI failure rather than assuming every failure belongs to exactly one universal category.
-
-**3. MSeer — An Advanced Technique for Locating Multiple Bugs in Parallel**
-
-- **Findings:** A program can contain multiple bugs simultaneously. The authors specifically note that techniques designed for exactly one bug become problematic when multiple bugs are present, since different failed tests may be caused by different underlying bugs.
-- **Impact on design:** The CI diagnosis agent should not represent the hidden state as exactly one winning cause. Multiple faults/causes should be allowed to exist simultaneously.
-
-**Important assumption:** Since the events are not mutually exclusive, P(A or B) = P(A) + P(B) − P(A ∩ B).
-
-**4. "Programmers' Build Errors: A Case Study at Google"**
-
-- **Findings:** 90% of build errors are caused by 10% of the problems — the distribution is heavily skewed.
-- **Impact on design:** There's no need for hundreds of hidden states; the 5–10 most frequent are sufficient for a baseline.
-
-### Android Research Across Open-Source Build Failures
-
-A study across build failures in 200 open-source projects found that the majority of failures fall into these categories. The table below shows the distribution of 139 total issue instances across 102 successfully resolved failing projects.
-
-| Category | Approx. Share |
-| :--- | :--- |
-| Development-environment errors | 45% |
-| Dependency / Gradle errors | 42% |
-| Configuration errors | 8% |
-| Syntax/API errors | 5% |
-
-**Takeaway:** A few failure types dominate over the others, and a single failure may point toward multiple causes.
-
-### Refined Hypothesis Set
-
-The table below maps the original hypothesis set to the refined, more actionable set:
-
-| Original Hypothesis | Updated Belief / Granular Hypothesis | Why the Update Matters |
-| :--- | :--- | :--- |
-| **H_flaky** | **H_flaky_test** vs. **H_timing_race** | Distinguishes pure non-determinism from load-dependent race conditions in test setup. |
-| **H_environment_fault** | **H_container_image_fault** vs. **H_infra_provisioning_fault** | Fix paths diverge completely: local image rebuild vs. a DevOps infrastructure ticket. |
-| *(Missing)* | **H_human_operator_error** | Catches branch/commit anomalies (force pushes, bad merges) before burning LLM execution tokens. |
-| **H_fault_revealing** | **H_fault_revealing** (Code Bug) | A direct codebase failure requiring a developer fix. |
-| **H_dependency_fault** | **H_dependency_fault** | Outdated, missing, or upstream registry failures. |
-| **H_config_error** | **H_config_error** | Misconfigured environment variables, CI YAML syntax, or secrets. |
-| **H_shared_root_cause** | **H_shared_root_cause** | A compound identifier linking multiple test failures. |
-
-## The Problem with Mutually Exclusive Sets
-
-The value-of-information formula requires hypotheses to be mutually exclusive; otherwise the resulting numbers are misleading.
-
-Forming every possible combination of failures would yield 2⁹ = 512 hypotheses, which is impractical for a baseline version.
-
-## The New Approach
-
-Two failures might not always occur at the same time, and some failures may be genuinely mutually exclusive. For example, Hypothesis 1 and Hypothesis 2 might be able to co-occur, but Hypothesis 1 and Hypothesis 3 cannot.
-
-I shifted the goal from listing every possible edge case to constructing a set of individual hypotheses and joint hypotheses, while dropping those that are not plausible or that have very low joint probability.
-
-For some hypotheses, this assumes P(A and B) ≈ P(A) × P(B), where P(A ∩ B) is treated as negligible or artificially assumed to be zero to create a baseline.
-
-### After Discussion on Reddit and Further Research, I Constructed a Board of Hidden States
-
-| Node | Role |
-| :--- | :--- |
-| **H_human_operator_error** | If confirmed, this explains the failure away — short-circuiting the rest of the board via "explaining away," rather than requiring an edge to every other hypothesis. |
-
-**Marginal beliefs (independent):**
-
-- H_flaky_test
-- H_timing_race
-- H_fault_revealing
-- H_dependency_fault
-- H_config_error
-- H_container_image_fault
-- H_infra_provisioning_fault
-
-**Kept edges (the only two co-occurrence relationships worth modeling explicitly):**
-
-| Edge | Status |
-| :--- | :--- |
-| H_flaky_test — H_fault_revealing | Confirmed; cf. Haben et al. 2023 (Section 9): ~1/3 of regression faults had flaky histories — real, measured, and kept. |
-| H_timing_race — H_fault_revealing | Plausible but not yet confirmed. A race condition can itself be a genuine concurrency bug rather than a test artifact — reasoned by analogy from the row above, not independently measured. |
-
-**H_container_image_fault × H_infra_provisioning_fault** — These were split apart precisely because they have different owners and different fixes (Section 12); there is no cited reason to expect them to co-occur more than chance. Treated as independent.
-
-**H_dependency_fault × H_config_error** — Plausible on paper (a bad lockfile setting could look like either), but no CI-specific source was found establishing that these co-occur more than chance.
+## Important AI prompts/errors
+- Initial upload of 4 supporting chapter files failed silently (uploads folder was empty each time checked) — all research in this file was produced without them.
+- Declined to invent a single dollar cost for "a wrong CI diagnosis" — real sources measure general production downtime, not this specific failure mode; flagged the gap rather than papering over it with a fabricated number.
+- One hypothesis-interaction edge (`H_timing_race`–`H_fault_revealing`) is reasoned by analogy, not independently confirmed — kept labeled as such rather than presented as established.
