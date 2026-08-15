@@ -90,9 +90,7 @@ graph TD
 | `H_flaky_test` — `H_fault_revealing` | Confirmed. Haben et al. 2023: ~1/3 of regression faults had a flaky history. |
 | `H_timing_race` — `H_fault_revealing` | Plausible by analogy, not directly confirmed. |
 
-Dropped on purpose: `H_container_image_fault`×`H_infra_provisioning_fault` (different owners, no co-occurrence evidence), `H_dependency_fault`×`H_config_error` (plausible, no CI-specific source found).
 
-*Flagging, not fixing: `H_shared_root_cause` is in the refined-hypothesis table but not one of the 7 marginals on the board — it's a cross-instance relationship (links multiple failing tests within one CI run), not a property of a single failure, so it doesn't fit as a peer node here. Haven't decided if it needs its own mechanism or is a v2 problem.*
 
 ---
 
@@ -126,15 +124,15 @@ flowchart TD
 
 ---
 
-## Part 4 — Cost Analysis (for VoI)
+## Part 4 — Cost Analysis (for VoI) 
+
+Note: I didn't found much CI specific data, based on my research it's mostly time based
 
 | Cost item | Estimate | Source | Confidence |
 |---|---|---|---|
 | Asking a human to rerun a job | $0.006/min (Linux hosted runner) × duration | GitHub's 2026 runner pricing | High — published, measurable |
 | False escalation / unnecessary interruption | ~23 min lost focus per instance | Gloria Mark (UC Irvine), interruption-cost research | Medium — general knowledge-work research, not CI-specific; anchor, not a real number yet |
-| Wrongly calling a real fault "flaky/safe," worst case it ships and causes an outage | Ceiling only: ITIC 2024 (90%+ of mid/large enterprises report $300K+/hr downtime); Gartner's $5,600/min (2014) | ITIC 2024; Gartner 2014 | Low, deliberately |
 
-That last one is a ceiling, not an expected cost — most shipped bugs get caught by monitoring/rollback before a full outage. The real number is `P(this wrong call → real outage) × outage cost`, and I don't have that probability. Not inventing one — planning to elicit it as a calibrated 90% CI from someone who'd know, not a point guess.
 
 ---
 
@@ -158,11 +156,4 @@ flowchart TD
 ```
 
 ---
-
-## Open Questions
-
-- **Independence assumption** — P(A and B) ≈ P(A)×P(B) for most pairs, no edge modeled. Defensible for a baseline, or needs validating against labeled data first?
-- **`H_shared_root_cause`** — in the hypothesis list, not on the board. First-class before v1, or fine to defer?
-- **Downtime-cost ceiling** — used as an upper bound since I don't have the probability connecting a wrong call to an actual outage. Right way to handle not having that number, or is there a better bound for a baseline?
-- **23-minute interruption cost** — real research, but general knowledge-work, not CI-specific. Worth a CI-specific number before v1, or fine to ship with the general anchor?
-- **The 40% act/escalate threshold** — picked as a round number, not derived from a cost ratio. Should this come from the actual cost of a wrong diagnosis vs. the cost of an unnecessary escalation instead of a flat number?
+    
