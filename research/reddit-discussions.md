@@ -231,7 +231,7 @@ simply escalate to human
 
 I have mapped out some hidden states. Here 'they are; they are not mutually exclusive, as a failing CI can be because of many reasons.
 
-H_flaky → Basically, the test/system itself can behave nondeterministically
+H_flaky → Basically, the test/system itse   lf can behave nondeterministically
 
 H_fault_revealing → The failure is actually revealing a real bug/regression
 
