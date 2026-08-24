@@ -1,1 +1,8 @@
+# Virtual environments
 venv/
+
+# Data files
+*.parquet
+
+# Temporary scripts
+temp_inspect_*.py
