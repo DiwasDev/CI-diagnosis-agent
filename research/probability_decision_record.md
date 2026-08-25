@@ -580,3 +580,114 @@ P(S1) + P(S2) + P(S4) = 0.0092 + 0.0033 + 0.8494 = 0.8619  >  0.60
 | Default query order | E1 → E2 |
 | Action policy | V1: two fixed thresholds + escalation fallback |
 | Conditional independence | Assumed (known limitation, see §10 item 6) |
+| EIG(E3) at prior | 0.1201 bits (ASSUMED table — see §13) |
+| EIG(E4) at prior | 0.1930 bits (ASSUMED table — see §13) |
+
+---
+
+## 13. E3 / E4 Evidence Addendum
+
+> **Status:** Both likelihood tables in this section are **ASSUMED**, not empirical. They are reasoned from domain semantics — the same method used to *interpret* §6 and §7, but without cross-tabulation against real dataset counts. Treat them as informed priors on behaviour, not measured frequencies.
+
+---
+
+### E3 — Rerun Outcome
+
+**What it means:** If the exact same commit is triggered again on CI without any code change, does the run pass or fail?
+
+**Outcomes:** `pass_on_rerun` · `fail_on_rerun`
+
+**Semantic reasoning per state:**
+
+| State | Reasoning | P(pass_on_rerun) | P(fail_on_rerun) |
+|---|---|---|---|
+| S1 Source Code Issues | Syntax / import / logic errors are fully deterministic — same code, same Python, same failure every time | **0.05** | **0.95** |
+| S2 Project Config Issues | Malformed `pyproject.toml` or missing metadata is static — re-reading the same file produces the same error | **0.05** | **0.95** |
+| S3 Dependency Failures | Broken lockfiles and pinned version conflicts are deterministic; a small fraction of failures are transient registry timeouts that may self-heal | **0.15** | **0.85** |
+| S4 Static Analysis Failures | Linter output is a pure function of file content — same files, same violation, same failure | **0.03** | **0.97** |
+| S5 Test Failures | Mixed: genuine assertion failures are deterministic; ~30% of "test failures" in the wild are secretly flaky (timing, ordering, shared state) | **0.35** | **0.65** |
+| S6 Environment Setup Issues | Runner-instance-specific: missing OS package or wrong Python version is often resolved by a fresh runner allocation or image cache refresh | **0.50** | **0.50** |
+| S7 Other | Network flakes, API rate limits, OOM kills — by definition non-deterministic; most resolve on rerun | **0.75** | **0.25** |
+
+**Smoothed likelihood table `P(rerun_outcome | state)`** *(values are exact — binary outcomes need no Laplace smoothing):*
+
+| Hidden State | pass_on_rerun | fail_on_rerun |
+|---|---|---|
+| S1 Source Code Issues | 0.0500 | 0.9500 |
+| S2 Project Config Issues | 0.0500 | 0.9500 |
+| S3 Dependency Failures | 0.1500 | 0.8500 |
+| S4 Static Analysis Failures | 0.0300 | 0.9700 |
+| S5 Test Failures | 0.3500 | 0.6500 |
+| S6 Environment Setup Issues | 0.5000 | 0.5000 |
+| S7 Other | 0.7500 | 0.2500 |
+
+**Dominant signal:**
+- `pass_on_rerun` → strongly suggests S6 or S7; moderately suggests S5
+- `fail_on_rerun` → weak positive for S1/S2/S4 (already likely from prior); weakly rules out S7
+
+**EIG(E3) at prior: `0.1201 bits`**
+
+E3 is the weakest of the four sources at the prior. It becomes more useful *after* E1 or E2 have already ruled out the deterministic states — at that point observing `pass_on_rerun` is strong evidence for S6/S7.
+
+---
+
+### E4 — Local Reproducibility
+
+**What it means:** Does the failure reproduce when a developer runs the same commit on their local machine?
+
+**Outcomes:** `reproducible_locally` · `not_reproducible_locally`
+
+**Semantic reasoning per state:**
+
+| State | Reasoning | P(reproducible_locally) | P(not_reproducible_locally) |
+|---|---|---|---|
+| S1 Source Code Issues | Same Python interpreter, same source file — syntax and import errors always reproduce locally | **0.92** | **0.08** |
+| S2 Project Config Issues | Same `pyproject.toml` is read locally; minor gap from local build caches that may mask missing metadata | **0.80** | **0.20** |
+| S3 Dependency Failures | Local environments often have cached or pre-resolved packages that CI's clean `pip install` doesn't — the conflict may not surface locally | **0.45** | **0.55** |
+| S4 Static Analysis Failures | Same linter, same code → reproduces if developer has the same tool version (common in projects with pinned pre-commit hooks) | **0.88** | **0.12** |
+| S5 Test Failures | Mostly reproducible; some failures depend on CI-specific environment variables, test ordering seeds, or parallelism that differs locally | **0.70** | **0.30** |
+| S6 Environment Setup Issues | Missing `gcc`, wrong Python runtime, broken image — these are runner-infrastructure-specific and almost never affect a developer's local machine | **0.12** | **0.88** |
+| S7 Other | Network calls, rate limits, OOM kills — local machines have different network policies and memory limits; rarely reproduced | **0.15** | **0.85** |
+
+**Smoothed likelihood table `P(local_repro | state)`** *(exact — binary outcomes):*
+
+| Hidden State | reproducible_locally | not_reproducible_locally |
+|---|---|---|
+| S1 Source Code Issues | 0.9200 | 0.0800 |
+| S2 Project Config Issues | 0.8000 | 0.2000 |
+| S3 Dependency Failures | 0.4500 | 0.5500 |
+| S4 Static Analysis Failures | 0.8800 | 0.1200 |
+| S5 Test Failures | 0.7000 | 0.3000 |
+| S6 Environment Setup Issues | 0.1200 | 0.8800 |
+| S7 Other | 0.1500 | 0.8500 |
+
+**Dominant signal:**
+- `not_reproducible_locally` → strong positive for S6 and S7; mild positive for S3
+- `reproducible_locally` → mild positive for S1/S4; mildly rules out S6/S7
+
+**EIG(E4) at prior: `0.1930 bits`**
+
+E4 is the second-weakest source at the prior (after E3) but is the strongest of the two assumed sources. Its key discriminating power is in the S6/S7 pair — the only states with `not_reproducible_locally` probabilities above 0.80.
+
+---
+
+### Query order note
+
+In the greedy EIG agent loop, E1 (0.358 bits) is selected first in **100% of cases** at the prior. E4 (0.193 bits) outranks E2 (0.173 bits) and E3 (0.120 bits) at the prior, so it is selected second when E1 observation leaves beliefs diffuse. The actual second source varies per case depending on how much E1 concentrates the posterior.
+
+---
+
+### Audit record addendum
+
+| Item | Value |
+|---|---|
+| E3 source | ASSUMED — domain semantic reasoning |
+| E4 source | ASSUMED — domain semantic reasoning |
+| E3 outcomes | `pass_on_rerun`, `fail_on_rerun` |
+| E4 outcomes | `reproducible_locally`, `not_reproducible_locally` |
+| Smoothing applied | None (binary outcomes — no zero-probability cells possible) |
+| EIG(E3) at prior | 0.1201 bits |
+| EIG(E4) at prior | 0.1930 bits |
+| Test cases generated | 100 (seed 42, sampled from 567-row dataset) |
+| Output file | `data/ci_agent_test_cases_v2.jsonl` |
+| All evidence | Synthetically sampled conditioned on `ground_truth_state` |
