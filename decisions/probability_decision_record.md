@@ -216,9 +216,9 @@ flowchart TD
 
 CHECK{Posterior\ncheck}
 
-CHECK -- "P(S1) + P(S2) + P(S4) > 0.60" --> FIX["ACTION: Fix the code\nGenerate patch targeting\nsrc files, config, or lint violations"]
+CHECK -- "P(S1) + P(S2) + P(S4) > 37.5%" --> FIX["ACTION: Fix the code\nGenerate patch targeting\nsrc files, config, or lint violations"]
 
-CHECK -- "P(S3) > 0.80" --> DEP["ACTION: Resolve dependency\nUpdate lockfiles,\nadjust version pins"]
+CHECK -- "P(S3) > 37.5%" --> DEP["ACTION: Resolve dependency\nUpdate lockfiles,\nadjust version pins"]
 
 CHECK -- "Neither threshold met\nand evidence remains" --> MORE["Collect next evidence\n(highest EIG)"]
 
@@ -230,11 +230,9 @@ CHECK -- "Neither threshold met\nall evidence exhausted" --> ESC["ESCALATE to hu
 
 | Threshold | Value | Reason |
 |---|---|---|
-| Fix the code: `P(S1+S2+S4)` | > 0.60 | S1/S2/S4 fixes are local and safe — a wrong patch can be reverted cheaply |
-| Resolve dependency: `P(S3)` | > 0.80 | Dependency changes affect all downstream consumers — higher bar before acting |
+| Fix the code: `P(S1+S2+S4)` | > 37.5% | S1/S2/S4 fixes are local and safe — a wrong patch can be reverted cheaply |
+| Resolve dependency: `P(S3)` | >37.5% | Dependency changes affect all downstream consumers — higher bar before acting |
 | S5, S6, S7 | always escalate | Test logic needs domain knowledge; env issues need infra access; Other is too ambiguous |
-
-> **TODO (V2):** Map out action costs formally. Define `C(action, true_state)` — the cost of taking each action when each hidden state is the truth. Replace fixed thresholds with the optimal Bayes risk rule:
 
 >
 
@@ -535,32 +533,6 @@ E2 is weak at the prior (only 0.17 bits) but becomes highly valuable \*after\* E
 | E2 — Changed Files | `changed_files` | 0.173 bits | 2nd |
 
 **Excluded:** `error_type` — this column is the direct source used to derive `primary_hidden_state`. Using it as evidence would be data leakage.
-
-**Query order is dynamic:**
-
-```mermaid
-
-flowchart TD
-
-START([Prior beliefs]) --> Q1[Query E1\nPipeline step]
-
-Q1 -- "D observed\nS4 posterior = 0.69\nThreshold met" --> ACT1[Act immediately\nor query E2 for\nextra confidence]
-
-Q1 -- "C observed\nbeliefs still spread" --> Q2[Query E2\nChanged files]
-
-Q1 -- "A observed\nS2 and S3 rise" --> Q2
-
-Q2 -- "src observed\nS4 rises further" --> ACT2[Fix the code]
-
-Q2 -- "mixed observed\nno clear winner" --> ESC[Escalate]
-
-ACT1 --> DONE([Done])
-
-ACT2 --> DONE
-
-ESC --> DONE
-
-```
 
 ---
 
@@ -875,3 +847,38 @@ In the greedy EIG agent loop, E1 (0.358 bits) is selected first in **100% of cas
 | Test cases generated | 100 (seed 42, sampled from 567-row dataset) |
 | Output file | `data/ci_agent_test_cases_v2.jsonl` |
 | All evidence | Synthetically sampled conditioned on `ground_truth_state` |
+
+
+
+# Threshold
+```mermaid
+
+flowchart TD
+    A["CI Failure"] --> B["Bayesian Update"]
+    B --> C["Posterior Probabilities"]
+
+    C --> C1["p_code = P(S1)+P(S2)+P(S4)"]
+    C --> C2["p_dep = P(S3)"]
+    C --> C3["p_other = P(S5)+P(S6)+P(S7)"]
+
+    C1 --> D["Calculate Expected Costs"]
+    C2 --> D
+    C3 --> D
+
+    D --> D1["EC(Fix Code) = p_code×8.33 + (1-p_code)×75.07"]
+    D --> D2["EC(Fix Dependency) = p_dep×8.33 + (1-p_dep)×75.07"]
+    D --> D3["EC(Escalate) = 50"]
+
+    D1 --> E{"Lowest Expected Cost?"}
+    D2 --> E
+    D3 --> E
+
+    E -->|Fix Code| F["ACTION: Fix Code"]
+    E -->|Fix Dependency| G["ACTION: Fix Dependency"]
+    E -->|Escalate| H["ACTION: Escalate"]
+
+    I["Break-even threshold\n≈ 37.5%"] -.-> D1
+    I -.-> D2
+```
+
+
