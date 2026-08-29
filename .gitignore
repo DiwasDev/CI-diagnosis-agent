@@ -1,8 +1,16 @@
-# Virtual environments
-venv/
-
-# Data files
+# Data files & directories
+data/
 *.parquet
+*.jsonl
 
-# Temporary scripts
-temp_inspect_*.py
+# Temporary text files
+data/benchmark_data/temp.txt
+test.txt
+*.txt
+!requirements.txt
+
+# Jupyter Notebook checkpoints
+.ipynb_checkpoints/
+
+# Virtual Environment
+venv/
