@@ -1,611 +1,877 @@
-# Probability Decision Record — CI Failure Diagnosis Agent
+_       
+# Probability Decision Record — CI Failure Diagnosis Agent (Final)
 
-> **Problem statement:** The agent observes a failing GitHub Actions CI run. It must select the correct failure category because the true root cause is not known.
+> **Date:** 2026-08-24
 
----
+> **Dataset:** `ci_repair_bench_disambiguated.parquet` — 567 Python CI repair cases, 0 nulls
 
-## 1. Hidden States & Priors
-
-The priors are derived from Zheng et al. (2025), a study of 375 Java project CI failures. We merged near-duplicate categories (P3+P4, P5+P6) because our evidence sources cannot reliably distinguish them at the top level. The resulting 8 states and their empirical priors:
-
-| # | Hidden State | Paper Code(s) | Count | Prior | Reasoning |
-|---|-------------|---------------|-------|-------|-----------|
-| 1 | Source Code Issues | P1 | 54 | **0.144** | Syntax/logic errors in application code. Empirical frequency from paper. |
-| 2 | Project Config Issues | P2 | 19 | **0.051** | Bad `pyproject.toml`, missing README, incorrect build metadata. Empirical frequency. |
-| 3 | Dependency Failures | P3 + P4 | 78 | **0.208** | Merged: unresolved packages + version conflicts. Combined count. |
-| 4 | Static Analysis Failures | P5 + P6 | 41 | **0.109** | Merged: linting/coverage + security vulnerabilities. Combined count. |
-| 5 | Test Failures | P8 | 120 | **0.320** | Assertion failures, fixture errors, integration test breaks. Most common. Empirical. |
-| 6 | Workflow Config Issues | W2 | 21 | **0.056** | YAML syntax errors, missing secrets, bad `uses:` references. Empirical. |
-| 7 | Environment Setup Issues | W4 | 13 | **0.035** | Missing system packages, wrong Python version, runner image issues. Empirical. |
-| 8 | Other | Remaining | 29 | **0.077** | Resource limits, network flakes, API rate limits, permission issues, version control problems. Residual. |
-
-**Assumption:** These priors are drawn from Java projects but generalized to Python CI. We assume the relative frequencies are comparable because the CI pipeline structure (install → build → test → lint) is language-agnostic.
-
-**Prior entropy:**
-```
-H(S) = -[0.144*log2(0.144) + 0.051*log2(0.051) + 0.208*log2(0.208)
-       + 0.109*log2(0.109) + 0.320*log2(0.320) + 0.056*log2(0.056)
-       + 0.035*log2(0.035) + 0.077*log2(0.077)]
-     = 2.6543 bits
-```
+> **Status:** All priors and likelihoods are empirically grounded from this dataset unless explicitly noted otherwise.
 
 ---
 
-## 2. Agent Actions
+## 1. Problem Statement
 
-The agent selects an action based on the most probable hidden state after observing evidence:
+A GitHub Actions CI run has failed. The agent must identify the **root cause category** (hidden state) of the failure. The true root cause is not directly observable — the agent can only observe indirect signals (evidence). Using Bayes' theorem, the agent updates its beliefs over hidden states as each evidence source is queried, then takes a targeted action when sufficiently confident.
 
-| Action | Target States | When Applied |
-|--------|----------------|--------------|
-| **Fix the code** | Source Code Issues, Static Analysis Failures, Project Config Issues | Agent believes the fix is in code, config files, or lint rules. Agent generates a patch or suggests specific edits. |
-| **Try to resolve** | Dependency Failures | Agent attempts to fix version pins, update lockfiles, or suggest compatible dependency versions. |
-| **Escalate to human** | Test Failures, Workflow Config Issues, Environment Setup Issues, Other | These require human judgment: test logic may need domain knowledge, workflow changes need repo permissions, environment issues need infrastructure access, and "Other" is too vague to act on automatically. |
+**Bayes' Theorem:**
 
-**Why this policy:**
-- Code/config/static-analysis fixes are local and safe to attempt automatically.
-- Dependency resolution is semi-automated (poetry/pip can suggest fixes) but may need human approval for version bumps.
-- Test failures often require understanding the intended behavior — an agent shouldn't change test assertions without human review.
-- Workflow, environment, and "Other" issues touch infrastructure the agent doesn't control.
+```
+
+P(D | theta) \* P(theta)
+
+P(theta | D) = ─────────────────────────
+
+P(D)
+
+```
+
+- `P(theta)` — **Prior**: initial belief about root cause category before seeing any evidence
+
+- `P(D | theta)` — **Likelihood**: probability of observing evidence `D` given the true cause is `theta`
+
+- `P(theta | D)` — **Posterior**: updated belief after observing `D`
+
+- `P(D)` — **Marginal likelihood**: normalisation constant (sum of all numerators)
+
+**Update rule in code:**
+
+```python
+
+*# For each state s, multiply prior by likelihood of observed outcome*
+
+unnormalised[s] = prior[s] \* likelihood[s][observed_outcome]
+
+*# Normalise so beliefs sum to 1*
+
+Z = sum(unnormalised.values())
+
+posterior[s] = unnormalised[s] / Z
+
+```
 
 ---
 
-## 3. Evidence Source E2 — Which Pipeline Step Failed First
+## 2. Hidden States
 
-### What the agent does
-1. Fetch job metadata from GitHub API (or read webhook payload).
-2. Parse `jobs.steps[]` array.
-3. Find the first step with `conclusion == "failure"`.
+Seven mutually exclusive root cause categories. Every CI failure belongs to exactly one.
 
-### Cost
-- Time: ~0.3 seconds
-- API calls: 0–1 (free if using webhook payload)
-- Money: ~$0
-- Attention: Low
-- Maintenance: None
+Hidden states are mapped from the original dataset error_type column.
 
-### Outcomes
-- **A** — Install step (`pip install`, `poetry install`, `conda`)
-- **B** — Build/compile step (`python -m build`, import collection, `py_compile`)
-- **C** — Test step (`pytest`, `unittest`)
-- **D** — Static-analysis step (`flake8`, `black`, `mypy`, `bandit`, `pip-audit`)
-- **E** — Workflow/environment step (checkout, `actions/setup-python`, system provisioning, YAML parse)
-- **F** — Other / ambiguous (multi-phase failure, indeterminate)
+```mermaid
 
-### Likelihood Table with Assumption Rationale
+graph TD
 
-| State | A | B | C | D | E | F |
-|-------|---|---|---|---|---|---|
-| Source Code Issues | 0.03 | **0.75** | 0.15 | 0.04 | 0.01 | 0.02 |
-| Project Config Issues | 0.20 | **0.65** | 0.10 | 0.02 | 0.02 | 0.01 |
-| Dependency Failures | **0.88** | 0.07 | 0.02 | 0.01 | 0.01 | 0.01 |
-| Static Analysis Failures | 0.01 | 0.04 | 0.10 | **0.78** | 0.02 | 0.05 |
-| Test Failures | 0.01 | 0.08 | **0.85** | 0.02 | 0.02 | 0.02 |
-| Workflow Config Issues | 0.03 | 0.03 | 0.03 | 0.03 | **0.83** | 0.05 |
-| Environment Setup Issues | 0.15 | 0.10 | 0.02 | 0.02 | **0.68** | 0.03 |
-| Other | 0.18 | 0.12 | 0.20 | 0.08 | 0.25 | 0.17 |
+ROOT["CI Failure\<br/>(hidden state unknown)"]
 
-#### Row-by-row assumption rationale
+ROOT --> S1["S1 · Source Code Issues\<br/>\<i>Syntax, import, logic errors in src/\</i>"]
 
-**Source Code Issues (P1):**
-- **B = 0.75:** Syntax errors and import failures kill the build/collection phase before pytest executes. Assumed 0.75 (not 0.90) because some logic bugs survive import and fail in tests; (not 0.50) because syntax/import errors dominate over logic bugs in CI — developers catch many logic bugs locally before pushing.
-- **C = 0.15:** Logic bugs that survive import but cause test failures. Assumed 0.15 (not 0.30) because developers run tests locally; (not 0.05) because some logic bugs are environment-dependent and slip through.
-- **A = 0.03:** Rare case where a missing local package causes `pip install -e .` to fail. Not 0.00 to avoid claiming mathematical impossibility.
-- **D = 0.04:** Some static analysis tools run during build and catch issues. Not 0.00 because type checkers may run at compile time.
-- **E = 0.01:** Almost never a workflow issue for source code bugs. Kept at 0.01 as epsilon.
-- **F = 0.02:** Ambiguous cases where multiple phases fail simultaneously.
+ROOT --> S2["S2 · Project Config Issues\<br/>\<i>Corrupt pyproject.toml, bad metadata\</i>"]
 
-**Project Config Issues (P2):**
-- **B = 0.65:** Bad `pyproject.toml` or missing `README.md` explodes during `python -m build` or `pip install -e .` (build phase). Assumed 0.65 (not 0.80) because some config errors only surface during editable install (A=0.20); (not 0.40) because build is the primary failure point for config.
-- **A = 0.20:** Editable install fails due to bad config metadata. Not 0.30 because most config errors are caught earlier in build.
-- **C = 0.10:** Rarely reaches test phase if config is truly broken. Not 0.00 because some config errors are subtle (e.g., wrong package name that only breaks test imports).
+ROOT --> S3["S3 · Dependency Failures\<br/>\<i>Unresolvable packages, broken lockfiles\</i>"]
 
-**Dependency Failures (P3):**
-- **A = 0.88:** The dependency resolver lives in the install step. Assumed 0.88 (not 1.0) because compiled extensions can fail during build after a "successful" install; (not 0.70) because 88% reflects the empirical strength from the paper data.
-- **B = 0.07:** Compiled extensions (e.g., `numpy`) fail at import/compile time after install. Not 0.15 because most dependency issues are resolver-level, not compile-level.
-- **C–F:** Near-zero because dependency issues rarely manifest in later phases.
+ROOT --> S4["S4 · Static Analysis Failures\<br/>\<i>flake8, mypy, bandit, ruff rejections\</i>"]
 
-**Static Analysis Failures (P4):**
-- **D = 0.78:** Dedicated lint/security/coverage steps fail with tool exit codes. Assumed 0.78 (not 0.90) because tests may run in parallel and fail first (C=0.10); (not 0.60) because static analysis is usually its own distinct step.
-- **C = 0.10:** Parallel test execution reports first. Not 0.20 because most CIs run lint before or after tests, not in parallel.
-- **B = 0.04:** Some linters run during build. Not 0.00 because pre-commit hooks may run at build time.
+ROOT --> S5["S5 · Test Failures\<br/>\<i>AssertionError, fixture failures\</i>"]
 
-**Test Failures (P5):**
-- **C = 0.85:** Home state — tests fail in the test step. Assumed 0.85 (not 0.95) because collection errors (`conftest.py` crashes) structurally look like build failures (B=0.08); (not 0.70) because assertion failures are the canonical test failure mode.
-- **B = 0.08:** Collection errors attributed to the test job. Not 0.15 because most test failures are genuine assertion mismatches, not collection issues.
+ROOT --> S6["S6 · Environment Setup Issues\<br/>\<i>Missing gcc, wrong Python version\</i>"]
 
-**Workflow Config Issues (P6):**
-- **E = 0.83:** YAML parse errors and invalid `uses:` references fail at workflow parse time or during "Set up job." Assumed 0.83 (not 0.95) because some workflow issues (missing secrets) only kill specific downstream steps; (not 0.70) because most workflow config issues are caught before user-defined steps run.
-- **A–D = 0.03 each:** Missing secrets can kill a specific step. Set to 0.03 (not 0.00) to avoid exact zeros — a missing `PYPI_TOKEN` could make the publish step fail, which might be categorized as install/build/test/static depending on step naming.
+ROOT --> S7["S7 · Other\<br/>\<i>Network flakes, OOM, rate limits\</i>"]
 
-**Environment Setup Issues (P7):**
-- **E = 0.68:** Runner provisioning fails (wrong Python version, missing `gcc`). Assumed 0.68 (not 0.80) because missing system headers can make `pip install` fail with what looks like a dependency error (A=0.15); (not 0.50) because provisioning is the primary failure point.
-- **A = 0.15:** The **critical confound** — missing `libpq-dev` or `gcc` makes `pip install` fail. The symptom looks like dependency failure but the cause is environment setup. Assumed 0.15 (not 0.25) because not all env issues manifest this way; (not 0.05) because this is a well-known and common pattern in Python CI.
-- **B = 0.10:** Missing compiler kills C extension build. Not 0.20 because most env issues are caught at provisioning time, not build time.
-
-**Other (P8):**
-- Spread out by design. No dominant state. **E = 0.25** for GitHub platform issues (rate limits, bad action refs). **C = 0.20** for OOM during tests. **A = 0.18** for network flakes during install. Not concentrated because "Other" is a catch-all residual category containing multiple unrelated mechanisms.
-
-### EIG Computation
-
-**P(outcome) = sum over all states of [P(state) * P(outcome | state)]**
-
-**Outcome A (Install):**
-```
-P(A) = 0.144*0.03 + 0.051*0.20 + 0.208*0.88 + 0.109*0.01
-     + 0.320*0.01 + 0.056*0.03 + 0.035*0.15 + 0.077*0.18
-
-     = 0.00432 + 0.01020 + 0.18304 + 0.00109
-     + 0.00320 + 0.00168 + 0.00525 + 0.01386
-
-     = 0.22264
 ```
 
-**Posterior P(state | A):**
-```
-Source Code Issues:       0.00432 / 0.22264 = 0.0194
-Project Config Issues:    0.01020 / 0.22264 = 0.0458
-Dependency Failures:      0.18304 / 0.22264 = 0.8221
-Static Analysis Failures: 0.00109 / 0.22264 = 0.0049
-Test Failures:            0.00320 / 0.22264 = 0.0144
-Workflow Config Issues:   0.00168 / 0.22264 = 0.0075
-Environment Setup Issues: 0.00525 / 0.22264 = 0.0236
-Other:                    0.01386 / 0.22264 = 0.0623
-```
-
-**H(S | A) = 1.102 bits** (entropy drop = 1.552 bits)
-
-**Outcome B (Build):**
-```
-P(B) = 0.144*0.75 + 0.051*0.65 + 0.208*0.07 + 0.109*0.04
-     + 0.320*0.08 + 0.056*0.03 + 0.035*0.10 + 0.077*0.12
-
-     = 0.10800 + 0.03315 + 0.01456 + 0.00436
-     + 0.02560 + 0.00168 + 0.00350 + 0.00924
-
-     = 0.20009
-```
-
-**Posterior P(state | B):**
-```
-Source Code Issues:       0.10800 / 0.20009 = 0.5398
-Project Config Issues:    0.03315 / 0.20009 = 0.1657
-Dependency Failures:      0.01456 / 0.20009 = 0.0728
-Static Analysis Failures: 0.00436 / 0.20009 = 0.0218
-Test Failures:            0.02560 / 0.20009 = 0.1279
-Workflow Config Issues:   0.00168 / 0.20009 = 0.0084
-Environment Setup Issues: 0.00350 / 0.20009 = 0.0175
-Other:                    0.00924 / 0.20009 = 0.0462
-```
-
-**H(S | B) = 2.050 bits** (entropy drop = 0.605 bits)
-
-**Outcome C (Test):**
-```
-P(C) = 0.144*0.15 + 0.051*0.10 + 0.208*0.02 + 0.109*0.10
-     + 0.320*0.85 + 0.056*0.03 + 0.035*0.02 + 0.077*0.20
-
-     = 0.02160 + 0.00510 + 0.00416 + 0.01090
-     + 0.27200 + 0.00168 + 0.00070 + 0.01540
-
-     = 0.33154
-```
-
-**H(S | C) = 1.088 bits** (entropy drop = 1.566 bits)
-
-**Outcome D (Static):**
-```
-P(D) = 0.144*0.04 + 0.051*0.02 + 0.208*0.01 + 0.109*0.78
-     + 0.320*0.02 + 0.056*0.03 + 0.035*0.02 + 0.077*0.08
-
-     = 0.00576 + 0.00102 + 0.00208 + 0.08502
-     + 0.00640 + 0.00168 + 0.00070 + 0.00616
-
-     = 0.10882
-```
-
-**H(S | D) = 1.290 bits** (entropy drop = 1.365 bits)
-
-**Outcome E (Workflow/Env):**
-```
-P(E) = 0.144*0.01 + 0.051*0.02 + 0.208*0.01 + 0.109*0.02
-     + 0.320*0.02 + 0.056*0.83 + 0.035*0.68 + 0.077*0.25
-
-     = 0.00144 + 0.00102 + 0.00208 + 0.00218
-     + 0.00640 + 0.04648 + 0.02380 + 0.01925
-
-     = 0.10265
-```
-
-**H(S | E) = 2.093 bits** (entropy drop = 0.561 bits)
-
-**Outcome F (Other):**
-```
-P(F) = 0.144*0.02 + 0.051*0.01 + 0.208*0.01 + 0.109*0.05
-     + 0.320*0.02 + 0.056*0.05 + 0.035*0.03 + 0.077*0.17
-
-     = 0.00288 + 0.00051 + 0.00208 + 0.00545
-     + 0.00640 + 0.00280 + 0.00105 + 0.01309
-
-     = 0.03426
-```
-
-**H(S | F) = 2.490 bits** (entropy drop = 0.165 bits)
-
-**Full EIG for E2:**
-```
-H(S | E2) = 0.2226*1.102 + 0.2001*2.050 + 0.3315*1.088
-          + 0.1088*1.290 + 0.1027*2.093 + 0.0343*2.490
-
-          = 0.2453 + 0.4102 + 0.3607
-          + 0.1404 + 0.2149 + 0.0854
-
-          = 1.457 bits
-
-EIG(E2) = H(S) - H(S | E2)
-        = 2.654 - 1.457
-        = 1.198 bits
-```
-
-**Failure mode:** Outcome A (install) conflates **P3 (Dependency)** with **P7 (Environment Setup)** — missing system headers masquerade as resolver errors. Outcome B (build) conflates **P1 (Source Code)** with **P2 (Project Config)** — both fail during build.
+| # | Hidden State | Short Description |
+|---|---|---|
+| S1 | **Source Code Issues** | Syntax, import, or logic errors in application source files (`src/`). Break the build phase or cause isolated logic bugs during unit testing. |
+| S2 | **Project Config Issues** | Malformed project-level metadata: corrupt `pyproject.toml`, missing `README.md`, broken package build configuration. |
+| S3 | **Dependency Failures** | Missing packages, unresolvable version constraints, broken lockfiles, or missing third-party dependencies during package resolution and installation. |
+| S4 | **Static Analysis Failures** | Rejections from automated quality/security/formatting tools: `flake8`, `mypy`, `bandit`, `black`, `ruff`, coverage threshold checks. |
+| S5 | **Test Failures** | Explicit assertion mismatches, unexpected exceptions, or fixture setup failures within `tests/` during `pytest`/`unittest` execution. |
+| S6 | **Environment Setup Issues** | Runner infrastructure defects: missing OS-level headers (`gcc`, `libpq-dev`), incorrect Python runtime version, image provisioning failures. |
+| S7 | **Other** | Ambiguous, non-deterministic, or external failures: transient network flakes, API rate limits, disk space shortages, OOM kills (exit 137), permission issues. |
 
 ---
 
-## 4. Evidence Source E3 — Error Class / Exit Code Signature
+## 3. Priors
 
-### What the agent does
-1. Identify the failing step (same as E2).
-2. Fetch the full stderr/stdout log for that step.
-3. Classify the error text into one of 8 categories using regex/heuristics.
+**Source:** Directly counted from `primary_hidden_state` column in `ci_repair_bench_disambiguated.parquet`.
 
-### Cost
-- Time: ~1.5 seconds
-- API calls: 1–2
-- Money: ~$0 (regex) or ~$0.005 (LLM)
-- Attention: Medium
-- Maintenance: **Real** — regex patterns need updating when pip changes error formats or new tools emerge
+**Method:** `count / total_rows`. No assumptions, no smoothing, no external literature.
 
-### Outcomes
-- **α** — Syntax / Import / Compile (`SyntaxError`, `NameError`, `ImportError`, C-extension compile failure)
-- **β** — Config / Metadata (`FileNotFoundError` for `pyproject.toml`, `TomlDecodeError`, bad package metadata)
-- **γ** — Dependency Resolver (`Could not find a version`, `ResolutionImpossible`, `No matching distribution found`)
-- **δ** — Static Analysis (linter rule codes `E501`/`F401`, CVE IDs, coverage threshold messages)
-- **ε** — Test Assertion (`AssertionError`, `assert x == y`, `FAILED tests/...`, fixture `SetupError`)
-- **ζ** — System / Environment (`command not found: gcc`, `Killed` (exit 137/OOM), `No space left`, `Connection timed out`)
-- **η** — Workflow / Platform (`Unexpected value`, `Input required and not supplied`, `Unable to resolve action`, YAML parse error)
-- **θ** — Other / Ambiguous (generic non-zero exit, unrecognizable mashup, multi-error output)
+| # | Hidden State | Count | Prior P(S) |
+|---|---|---|---|
+| S1 | Source Code Issues | 15 | **0.0265** |
+| S2 | Project Config Issues | 33 | **0.0582** |
+| S3 | Dependency Failures | 177 | **0.3122** |
+| S4 | Static Analysis Failures | 236 | **0.4162** |
+| S5 | Test Failures | 66 | **0.1164** |
+| S6 | Environment Setup Issues | 32 | **0.0564** |
+| S7 | Other | 8 | **0.0141** |
+| | **TOTAL** | **567** | **1.0000** |
 
-### Likelihood Table with Assumption Rationale
+**Prior entropy:** `H(S) = -sum_i [ P(Si) \* log2(P(Si)) ] = 2.110 bits`
 
-| State | α | β | γ | δ | ε | ζ | η | θ |
-|-------|---|---|---|---|---|---|---|---|
-| Source Code Issues | **0.80** | 0.05 | 0.02 | 0.01 | 0.10 | 0.01 | 0.00 | 0.01 |
-| Project Config Issues | 0.05 | **0.85** | 0.05 | 0.01 | 0.01 | 0.02 | 0.00 | 0.01 |
-| Dependency Failures | 0.05 | 0.05 | **0.88** | 0.00 | 0.00 | 0.01 | 0.00 | 0.01 |
-| Static Analysis Failures | 0.02 | 0.02 | 0.01 | **0.90** | 0.02 | 0.02 | 0.00 | 0.01 |
-| Test Failures | 0.03 | 0.01 | 0.01 | 0.05 | **0.85** | 0.03 | 0.00 | 0.02 |
-| Workflow Config Issues | 0.005 | 0.005 | 0.005 | 0.005 | 0.005 | 0.05 | **0.875** | 0.05 |
-| Environment Setup Issues | 0.05 | 0.02 | 0.10 | 0.01 | 0.01 | **0.75** | 0.05 | 0.01 |
-| Other | 0.05 | 0.05 | 0.10 | 0.05 | 0.15 | **0.35** | 0.15 | 0.10 |
+**Prior distribution — bar chart:**
 
-#### Row-by-row assumption rationale
-
-**Source Code Issues (P1):**
-- **α = 0.80:** `SyntaxError`, `NameError`, `ImportError` pointing to `src/` dominate. Assumed 0.80 (not 0.90) because some logic bugs trigger test assertions instead (ε=0.10); (not 0.60) because syntax/import errors are the majority of CI-level code defects — developers catch logic bugs locally before pushing.
-- **ε = 0.10:** Logic bugs that survive import and trigger `AssertionError` in tests. Not 0.20 because developers run tests locally; not 0.05 because some environment-dependent logic bugs slip through.
-- **η = 0.00:** Workflow issues do not produce syntax errors. Assumed exactly 0.00 because these are disjoint error vocabularies — a YAML parse error never looks like a Python `SyntaxError`.
-
-**Project Config Issues (P2):**
-- **β = 0.85:** `TomlDecodeError`, `FileNotFoundError` on config files, `setup.py` metadata failures. Assumed 0.85 (not 0.95) because some config issues look like dependency errors when `pip install -e .` fails (γ=0.05); (not 0.70) because config errors have distinctive signatures that are easy to recognize.
-- **γ = 0.05:** Bad config can cause `pip install` to fail with resolver-like symptoms. Not 0.15 because most config errors are caught before the resolver runs.
-
-**Dependency Failures (P3):**
-- **γ = 0.88:** Resolver-specific vocabulary (`ResolutionImpossible`, `No matching distribution found`) is unmistakable. Assumed 0.88 (not 1.0) because compiled extensions can fail with C-compiler errors during install (α=0.05); (not 0.70) because resolver errors have a very specific and consistent format across pip/poetry/conda.
-- **δ = 0.00:** Dependency resolver does not emit linter rule codes or CVE IDs. Exact zero justified because these are completely disjoint error types — no pip error message contains `E501` or a CVE ID.
-- **ε = 0.00:** Dependency resolution does not produce test assertions. Exact zero justified — the resolver runs before tests.
-
-**Static Analysis Failures (P4):**
-- **δ = 0.90:** Linter rule codes (`E501`, `F401`), CVE IDs (`CVE-2024-XXXX`), and coverage threshold messages (`Coverage failure: total of 45`) are unique signatures. Assumed 0.90 (not 1.0) because some static analysis failures are collection errors that look like test setup failures (ε=0.02); (not 0.80) because the signature is extremely distinctive.
-- **ε = 0.02:** Test collection errors in `conftest.py` can be misattributed. Not 0.05 because most static analysis failures are genuine tool exits.
-
-**Test Failures (P5):**
-- **ε = 0.85:** `AssertionError`, `assert x == y`, `FAILED tests/...` are the canonical test failure signatures. Assumed 0.85 (not 0.95) because some test failures are fixture/setup errors (δ=0.05) or timeouts (ζ=0.03); (not 0.70) because assertion mismatch is the dominant test failure mode.
-- **δ = 0.05:** Test collection errors or coverage threshold failures. Not 0.10 because these are less common than assertion failures.
-
-**Workflow Config Issues (P6):**
-- **η = 0.875:** YAML parse errors (`mapping values are not allowed`), `Unexpected value 'python-versionn'`, `Unable to resolve action` are unmistakably GitHub Actions vocabulary. Assumed 0.875 (not 0.95) because some workflow issues manifest as system errors (ζ=0.05, e.g., missing runner image); (not 0.80) because the vocabulary is extremely specific.
-- **α–ε = 0.005 each:** Epsilon masses instead of exact zeros. We use 0.005 (not 0.00) to avoid claiming mathematical impossibility — a malformed workflow could inject bad shell code via `run:` that generates a `SyntaxError` in a generated file, or a missing secret could cause a downstream `AssertionError` in a test that depends on the secret. These are vanishingly rare but not logically impossible.
-- **Why 0.005 specifically:** Small enough to not materially affect posteriors, large enough to prevent the agent from permanently zeroing out a state based on a single edge-case observation.
-
-**Environment Setup Issues (P7):**
-- **ζ = 0.75:** `command not found: gcc`, `Killed` (exit 137/OOM), `No space left on device`, runner-image version mismatches. Assumed 0.75 (not 0.90) because missing system headers can cause `pip install` to fail with resolver-like symptoms (γ=0.10); (not 0.60) because system-level errors dominate environment setup failures.
-- **γ = 0.10:** The **same confound as E2** — missing `libpq-dev` or `gcc` makes `pip install` fail with `Could not find a version` or compile errors that look like dependency problems. Assumed 0.10 (not 0.20) because not all environment issues are missing headers; (not 0.05) because this is a well-documented and common pattern in Python CI (especially with `psycopg2` and `numpy`).
-- **α = 0.05:** Missing compiler causes C-extension compile failure. Not 0.10 because most env issues are caught at provisioning time.
-
-**Other (P8):**
-- **ζ = 0.35:** Resource limits (OOM, disk full) produce system-level errors. Not 0.50 because "Other" also contains network flakes and platform issues.
-- **η = 0.15:** GitHub platform issues (rate limits, API outages) produce workflow-like errors. Not 0.25 because these are a subset of "Other."
-- **ε = 0.15:** Flaky tests that fail with assertions on retry. Not 0.25 because flaky tests are only one sub-category.
-- **Spread design:** No single outcome dominates because "Other" is a catch-all containing multiple unrelated mechanisms.
-
-### EIG Computation
-
-**P(α) calculation:**
-```
-P(α) = 0.144*0.80 + 0.051*0.05 + 0.208*0.05 + 0.109*0.02
-     + 0.320*0.03 + 0.056*0.005 + 0.035*0.05 + 0.077*0.05
-
-     = 0.11520 + 0.00255 + 0.01040 + 0.00218
-     + 0.00960 + 0.00028 + 0.00175 + 0.00385
-
-     = 0.14581
 ```
 
-**Posterior P(state | α):**
-```
-Source Code Issues:       0.11520 / 0.14581 = 0.7901
-Project Config Issues:    0.00255 / 0.14581 = 0.0175
-Dependency Failures:      0.01040 / 0.14581 = 0.0713
-Static Analysis Failures: 0.00218 / 0.14581 = 0.0149
-Test Failures:            0.00960 / 0.14581 = 0.0658
-Workflow Config Issues:   0.00028 / 0.14581 = 0.0019
-Environment Setup Issues: 0.00175 / 0.14581 = 0.0120
-Other:                    0.00385 / 0.14581 = 0.0264
-```
+Prior P(S)
 
-**H(S | α) = 1.224 bits** (drop = 1.431 bits)
+───────────────────────────────────────────────────────────
 
-**P(β) = 0.07116, H(S | β) = 1.856 bits** (drop = 0.799 bits)
+S4 Static Analysis  ████████████████████████████████  41.6%
 
-**P(γ) calculation:**
-```
-P(γ) = 0.144*0.02 + 0.051*0.05 + 0.208*0.88 + 0.109*0.01
-     + 0.320*0.01 + 0.056*0.005 + 0.035*0.10 + 0.077*0.10
+S3 Dependency       ████████████████████████          31.2%
 
-     = 0.00288 + 0.00255 + 0.18304 + 0.00109
-     + 0.00320 + 0.00028 + 0.00350 + 0.00770
+S5 Test Failures    █████████                         11.6%
 
-     = 0.20424
+S2 Project Config   ████                               5.8%
+
+S6 Env Setup        ████                               5.6%
+
+S1 Source Code      ██                                 2.6%
+
+S7 Other            █                                  1.4%
+
+───────────────────────────────────────────────────────────
+
 ```
 
-**Posterior P(state | γ):**
-```
-Source Code Issues:       0.00288 / 0.20424 = 0.0141
-Project Config Issues:    0.00255 / 0.20424 = 0.0125
-Dependency Failures:      0.18304 / 0.20424 = 0.8962
-Static Analysis Failures: 0.00109 / 0.20424 = 0.0053
-Test Failures:            0.00320 / 0.20424 = 0.0157
-Workflow Config Issues:   0.00028 / 0.20424 = 0.0014
-Environment Setup Issues: 0.00350 / 0.20424 = 0.0171
-Other:                    0.00770 / 0.20424 = 0.0377
-```
+**Key observation:** S4 and S3 together account for 72.8% of all cases. This skew is real — it reflects what actually breaks Python CI in production open-source projects.
 
-**H(S | γ) = 0.734 bits** (drop = 1.921 bits)
-
-**P(δ) = 0.12053, H(S | δ) = 0.942 bits** (drop = 1.713 bits)
-
-**P(ε) calculation:**
-```
-P(ε) = 0.144*0.10 + 0.051*0.01 + 0.208*0.00 + 0.109*0.02
-     + 0.320*0.85 + 0.056*0.005 + 0.035*0.01 + 0.077*0.15
-
-     = 0.01440 + 0.00051 + 0.00000 + 0.00218
-     + 0.27200 + 0.00028 + 0.00035 + 0.01155
-
-     = 0.30127
-```
-
-**Posterior P(state | ε):**
-```
-Source Code Issues:       0.01440 / 0.30127 = 0.0478
-Project Config Issues:    0.00051 / 0.30127 = 0.0017
-Dependency Failures:      0.00000 / 0.30127 = 0.0000
-Static Analysis Failures: 0.00218 / 0.30127 = 0.0072
-Test Failures:            0.27200 / 0.30127 = 0.9028
-Workflow Config Issues:   0.00028 / 0.30127 = 0.0009
-Environment Setup Issues: 0.00035 / 0.30127 = 0.0012
-Other:                    0.01155 / 0.30127 = 0.0383
-```
-
-**H(S | ε) = 0.611 bits** (drop = 2.043 bits)
-
-**P(ζ) = 0.07232, H(S | ζ) = 2.129 bits** (drop = 0.526 bits)
-**P(η) = 0.06230, H(S | η) = 0.868 bits** (drop = 1.786 bits)
-**P(θ) = 0.02237, H(S | θ) = 2.425 bits** (drop = 0.229 bits)
-
-**Full EIG for E3:**
-```
-H(S | E3) = 0.1458*1.224 + 0.0712*1.856 + 0.2042*0.734 + 0.1205*0.942
-          + 0.3013*0.611 + 0.0723*2.129 + 0.0623*0.868 + 0.0224*2.425
-
-          = 0.1785 + 0.1321 + 0.1499 + 0.1135
-          + 0.1841 + 0.1539 + 0.0541 + 0.0543
-
-          = 1.020 bits
-
-EIG(E3) = 2.654 - 1.020 = 1.634 bits
-```
-
-**Failure mode:** γ (dependency resolver) leaks from **P7 (Environment Setup)** when missing `gcc`/`libpq-dev` causes pip to emit resolver-like errors. This is the same confound as E2's outcome A.
+**Assumption:** These priors represent failure frequency in open-source Python CI workflows. They may not transfer to private enterprise codebases (stricter pre-commit hooks reduce S4) or to non-Python repositories.
 
 ---
 
-## 5. Evidence Source E4 — Git Diff Against Last Green Build
+## 4. Agent Loop
 
-### What the agent does
-1. Query GitHub API for the most recent successful run on the same branch.
-2. Fetch the diff: `GET /repos/{owner}/{repo}/compare/{base}...{head}`.
-3. Classify each changed file path into one of six buckets.
-4. Emit the dominant category.
+```mermaid
 
-### Cost
-- Time: ~0.5–1.0 seconds
-- API calls: 2
-- Money: ~$0
-- Attention: Low
-- Maintenance: Low (file path patterns are stable)
+flowchart TD
 
-### Outcomes
-- **src** — Application source code changed (`src/`, main package)
-- **test** — Test files changed (`tests/`, `test_*.py`)
-- **config** — Build/dependency config changed (`pyproject.toml`, `requirements.txt`, `poetry.lock`)
-- **ci** — CI/environment config changed (`.github/workflows/`, `Dockerfile`, `.python-version`)
-- **mixed** — Multiple categories changed
-- **none** — Empty diff / no file changes (same commit retried, or no code changes)
+A([Start: CI run failed]) --> B[Initialise beliefs\nwith empirical priors]
 
-### Likelihood Table with Assumption Rationale
+B --> C{Action\nthreshold\nmet?}
 
-| State | src | test | config | ci | mixed | none |
-|-------|-----|------|--------|----|-------|------|
-| Source Code Issues | **0.70** | 0.05 | 0.03 | 0.02 | 0.15 | 0.05 |
-| Project Config Issues | 0.05 | 0.03 | **0.75** | 0.02 | 0.10 | 0.05 |
-| Dependency Failures | 0.03 | 0.02 | **0.80** | 0.02 | 0.08 | 0.05 |
-| Static Analysis Failures | **0.55** | 0.10 | 0.15 | 0.03 | 0.15 | 0.02 |
-| Test Failures | 0.35 | **0.45** | 0.03 | 0.02 | 0.10 | 0.05 |
-| Workflow Config Issues | 0.01 | 0.01 | 0.03 | **0.85** | 0.06 | 0.04 |
-| Environment Setup Issues | 0.03 | 0.02 | 0.02 | **0.55** | 0.08 | 0.30 |
-| Other | 0.12 | 0.08 | 0.08 | 0.10 | 0.15 | **0.47** |
+C -- Yes --> ACT[Take Action\nsee §5]
 
-#### Row-by-row assumption rationale
+C -- No --> D[Select evidence source\nwith highest EIG\ngiven current beliefs]
 
-**Source Code Issues (P1):**
-- **src = 0.70:** The buggy code changed. Assumed 0.70 (not 0.90) because sometimes tests expose existing bugs (test=0.05) or the bug is in mixed changes; (not 0.50) because most source code issues are introduced by the changed code itself.
-- **mixed = 0.15:** `src/` + other files changed together. Not 0.30 because many PRs are focused on a single concern.
-- **none = 0.05:** Retried same commit, real bug persists. Not 0.10 because most source code issues are introduced by new code.
+D --> E[Observe evidence\nfrom CI run data]
 
-**Project Config Issues (P2):**
-- **config = 0.75:** `pyproject.toml`/`setup.py` changed. Assumed 0.75 (not 0.90) because some config issues are latent and only triggered by a new dependency version (none=0.05); (not 0.60) because config changes are the primary trigger for config failures.
+E --> F[Update beliefs\nvia Bayes rule\nnormalise]
 
-**Dependency Failures (P3):**
-- **config = 0.80:** `requirements.txt`/`poetry.lock` changed. Assumed 0.80 (not 0.90) because upstream packages can be yanked from PyPI without local changes (none=0.05); (not 0.70) because lockfile changes are the dominant trigger.
+F --> G{Any evidence\nsources\nremaining?}
 
-**Static Analysis Failures (P4):**
-- **src = 0.55:** New code triggers lint/security rules. Assumed 0.55 (not 0.70) because lint config changes also trigger failures (config=0.15) and test code changes can be linted (test=0.10); (not 0.40) because new code is the most common trigger for lint failures.
+G -- Yes --> C
 
-**Test Failures (P5):**
-- **test = 0.45:** Test logic changed. Assumed 0.45 (not 0.60) because code changes breaking existing tests are also common (src=0.35); (not 0.30) because test files are frequently modified in PRs.
-- **src = 0.35:** Code change broke existing tests. Not 0.50 because test file changes are slightly more common than src changes for test failures.
+G -- No --> ESC[Escalate to human\nLLM diagnosis report]
 
-**Workflow Config Issues (P6):**
-- **ci = 0.85:** Workflow file changed. Assumed 0.85 (not 0.95) because secrets can expire without workflow changes (none=0.04); (not 0.75) because workflow file changes are the dominant trigger.
+ACT --> END([Done])
 
-**Environment Setup Issues (P7):**
-- **ci = 0.55:** `Dockerfile`/`.python-version` changed. Assumed 0.55 (not 0.70) because runner image updates happen upstream without local changes (none=0.30); (not 0.40) because local env config changes are still a significant trigger.
-- **none = 0.30:** Runner image updated upstream, no local diff. This is high because environment setup issues are often caused by GitHub changing runner images, not by developer changes. Not 0.40 because some env issues are local Dockerfile changes; not 0.20 because upstream changes are a major cause of "it worked yesterday" failures.
+ESC --> END
 
-**Other (P8):**
-- **none = 0.47:** Flaky/resource/network failures have no code changes. Assumed 0.47 (not 0.60) because some "Other" failures coincide with unrelated file changes; (not 0.30) because the defining feature of flaky/resource/network failures is that they occur without code changes.
-
-### EIG Computation
-
-**P(src) = 0.2924, H(S | src) = 1.911 bits** (drop = 0.744 bits)
-**P(test) = 0.1752, H(S | test) = 1.087 bits** (drop = 1.567 bits)
-**P(config) = 0.2435, H(S | config) = 1.552 bits** (drop = 1.103 bits)
-**P(ci) = 0.0923, H(S | ci) = 2.131 bits** (drop = 0.524 bits)
-**P(mixed) = 0.1094, H(S | mixed) = 2.642 bits** (drop = 0.012 bits)
-**P(none) = 0.0873, H(S | none) = 2.423 bits** (drop = 0.231 bits)
-
-**Full EIG for E4:**
-```
-H(S | E4) = 0.2924*1.911 + 0.1752*1.087 + 0.2435*1.552
-          + 0.0923*2.131 + 0.1094*2.642 + 0.0873*2.423
-
-          = 0.5588 + 0.1904 + 0.3779
-          + 0.1967 + 0.2890 + 0.2115
-
-          = 1.824 bits
-
-EIG(E4) = 2.654 - 1.824 = 0.830 bits
 ```
 
-**Failure mode:** The **"mixed" outcome** (10.9% of the time) is nearly uninformative — entropy drops only 0.012 bits. When multiple file categories change, the diff says "something changed" without isolating the cause. The **"src" outcome** is muddy because src changes can break tests, trigger lint, or contain syntax errors — three states compete.
+**Pseudocode:**
+
+```
+
+INITIALISE beliefs <- priors P(S)
+
+LOOP:
+
+IF action threshold met:
+
+TAKE ACTION  (see Section 5)
+
+BREAK
+
+evidence <- SELECT source with highest EIG given current beliefs
+
+observation <- OBSERVE that evidence source from CI run data
+
+FOR each state s:
+
+unnorm[s] = beliefs[s] \* likelihood[s][observation]
+
+Z = sum(unnorm.values())
+
+beliefs[s] = unnorm[s] / Z       # normalise
+
+AFTER all evidence collected with no action threshold met:
+
+ESCALATE to human with ranked posterior + diagnosis report
+
+```
+
+**Evidence selection:** At each step the agent computes EIG for every remaining (unobserved) source under the current posterior and queries the highest. This is greedy one-step lookahead — not globally optimal but computationally tractable.
 
 ---
 
-## 6. Cost Analysis
+## 5. Action Policy
 
-| Source | Time | API Calls | Money | Attention | Maintenance | Honest Cost |
-|--------|------|-----------|-------|-----------|-------------|-------------|
-| E2 | 0.3s | 0–1 | $0 | Low | None | **0.3 agent-seconds** |
-| E4 | 0.5–1.0s | 2 | $0 | Low | Low | **0.5 agent-seconds** |
-| E3 | 1.5s | 1–2 | $0 (regex) or $0.005 (LLM) | Medium | **Real** — pattern updates for new tool versions | **1.5 agent-seconds + ongoing maintenance** |
+```mermaid
 
-**Key insight:** Costs are not independent. E3's log fetch can reuse the failing step identified by E2. If E2 is run first, E3's marginal cost drops because the log is already located.
+flowchart TD
 
----
+CHECK{Posterior\ncheck}
 
-## 7. Cost-Adjusted Ranking
+CHECK -- "P(S1) + P(S2) + P(S4) > 0.60" --> FIX["ACTION: Fix the code\nGenerate patch targeting\nsrc files, config, or lint violations"]
 
-### Raw EIG ranking
+CHECK -- "P(S3) > 0.80" --> DEP["ACTION: Resolve dependency\nUpdate lockfiles,\nadjust version pins"]
 
-| Rank | Source | EIG |
-|------|--------|-----|
-| 1 | E3 | 1.634 bits |
-| 2 | E2 | 1.198 bits |
-| 3 | E4 | 0.830 bits |
+CHECK -- "Neither threshold met\nand evidence remains" --> MORE["Collect next evidence\n(highest EIG)"]
 
-### Bits per agent-second (isolated costs)
+CHECK -- "Neither threshold met\nall evidence exhausted" --> ESC["ESCALATE to human\nLLM diagnosis report\nwith ranked posterior"]
 
-| Source | EIG | Cost (s) | EIG/Cost |
-|--------|-----|----------|----------|
-| E2 | 1.198 | 0.3 | **3.99 bits/s** |
-| E4 | 0.830 | 0.5 | **1.66 bits/s** |
-| E3 | 1.634 | 1.5 | **1.09 bits/s** |
+```
 
-### Marginal cost when sequenced
+**Threshold rationale:**
 
-If E2 is run first (identifies failing step), E3's log fetch is already done:
+| Threshold | Value | Reason |
+|---|---|---|
+| Fix the code: `P(S1+S2+S4)` | > 0.60 | S1/S2/S4 fixes are local and safe — a wrong patch can be reverted cheaply |
+| Resolve dependency: `P(S3)` | > 0.80 | Dependency changes affect all downstream consumers — higher bar before acting |
+| S5, S6, S7 | always escalate | Test logic needs domain knowledge; env issues need infra access; Other is too ambiguous |
 
-| Source | Marginal Cost | Marginal EIG/Cost |
-|--------|--------------|-------------------|
-| E2 | 0.3s | 3.99 bits/s |
-| E3 (after E2) | **0.5s** (log cached) | **3.27 bits/s** |
-| E4 | 0.5s | 1.66 bits/s |
+> **TODO (V2):** Map out action costs formally. Define `C(action, true_state)` — the cost of taking each action when each hidden state is the truth. Replace fixed thresholds with the optimal Bayes risk rule:
+
+>
+
+> ```
+
+> best_action = argmin over actions:
+
+>                   sum over states s of [ P(s | D) \* C(action, s) ]
+
+> ```
 
 ---
 
-## 8. Ordering Policy
+## 6. Evidence Source E1 — Which Pipeline Step Failed First
 
-**The rule: maximize EIG per marginal cost, accounting for shared infrastructure.**
+### What it means
 
-1. **Run E2 first.** Cheapest per bit (3.99 bits/s). Tells you which phase died.
-2. **If E2 is ambiguous** (outcome B = build step, or E = workflow/env step), **run E3 next.** The failing step's log is already identified — marginal cost drops to ~0.5s, efficiency jumps to 3.27 bits/s.
-3. **If E3 leaves a tie**, run E4 as tie-breaker. Specifically:
-   - E2=B (build) + E3=ε (assertion) + E4=src → diagnose **P1** (logic bug in src), not P5 → **Action: Fix the code**
-   - E2=E (workflow/env) + E3=γ (resolver) + E4=ci → diagnose **P6** (workflow config), not P7 → **Action: Escalate**
-   - E2=C (test) + E3=ε + E4=none → diagnose **P8 Other** (flaky test), not P5 → **Action: Escalate**
-   - E2=A (install) + E3=γ + E4=config → diagnose **P3** (dependency) → **Action: Try to resolve**
-   - E2=A (install) + E3=γ + E4=none → ambiguous P3 vs P7 → **Action: Escalate** (needs human to check if system headers are missing)
+The CI pipeline runs steps in sequence. The step that fails \*first\* reveals which phase the root cause manifested in. Because each phase gates the next (install → build → test → lint), the earliest failure is the strongest structural signal for root cause.
+
+```mermaid
+
+graph LR
+
+CK["Checkout"] --> ENV["Env Setup\n(setup-python)"]
+
+ENV --> INS["Install\n(pip/poetry)"]
+
+INS --> BLD["Build/Compile"]
+
+BLD --> TST["Test\n(pytest)"]
+
+TST --> LNT["Lint/Audit\n(ruff/bandit)"]
+
+INS -. "fails here → A" .-> OBS(["Observed\nOutcome"])
+
+TST -. "fails here → C" .-> OBS
+
+LNT -. "fails here → D" .-> OBS
+
+```
+
+### How to extract from dataset
+
+**Dataset column:** `failed_jobs` — type `List[Struct{job_name: String, steps: List[String]}]`
+
+**Extraction rule:** Take `failed_jobs[0].steps[0]` — the first step of the first failed job. Lowercase and match against buckets in priority order:
+
+| Bucket | Keywords (substring match, case-insensitive) |
+|---|---|
+| **A — Install** | `install`, `pip`, `poetry`, `conda`, `requirements`, `setup-python`, `dependencies` |
+| **B — Build/Compile** | `build`, `compile`, `import`, `py_compile` |
+| **C — Test** | `test`, `pytest`, `unittest`, `coverage` |
+| **D — Static Analysis** | `lint`, `flake8`, `black`, `mypy`, `bandit`, `ruff`, `format`, `pre-commit`, `audit`, `type` |
+| **E — Workflow/Environment** | `checkout`, `setup`, `provision`, `yaml`, `job`, `environment` |
+| **F — Other/Ambiguous** | (remainder: `tox`, `isort`, `pyright`, `yapf`, `codestyle`, etc.) |
+
+**Assumption:** First-failed-step = earliest failure = root cause phase. Breaks down for parallel jobs — the extraction rule picks an arbitrary job, introducing noise.
+
+### Evidence Outcomes
+
+Six mutually exclusive, exhaustive outcomes: **A · B · C · D · E · F**
+
+### Likelihood Table
+
+**Method:** Cross-tabulation of `primary_hidden_state` × step bucket (567 rows). Laplace add-1 smoothing applied to all cells. Rows re-normalised to sum to 1.
+
+**Why Laplace smoothing?** Without it, `P(A | S1 Source Code) = 0/15 = 0` — a permanent zero that would wipe out S1 forever the moment step A is observed. Adding k=1 pseudo-count per cell prevents this while barely changing high-count cells (e.g., 156 → 157 for D|S4).
+
+**Smoothed likelihood table `P(step | state)`:**
+
+| Hidden State | A | B | C | D | E | F |
+|---|---|---|---|---|---|---|
+| S1 Source Code Issues | 0.0476 | 0.0952 | 0.4762 | 0.1429 | 0.0952 | 0.1429 |
+| S2 Project Config Issues | 0.2308 | 0.0256 | 0.4359 | 0.0769 | 0.0769 | 0.1538 |
+| S3 Dependency Failures | 0.1694 | 0.0164 | 0.4426 | 0.3279 | 0.0164 | 0.0273 |
+| S4 Static Analysis Failures | 0.0248 | 0.0083 | 0.0785 | **0.6488** | 0.0248 | 0.2149 |
+| S5 Test Failures | 0.0417 | 0.0417 | **0.6528** | 0.0417 | 0.0556 | 0.1667 |
+| S6 Environment Setup Issues | 0.0526 | 0.0526 | **0.6842** | 0.0789 | 0.0526 | 0.0789 |
+| S7 Other | 0.1429 | 0.0714 | **0.5714** | 0.0714 | 0.0714 | 0.0714 |
+
+**Raw empirical percentages (pre-smoothing):**
+
+| Hidden State | A | B | C | D | E | F | n |
+|---|---|---|---|---|---|---|---|
+| S1 Source Code Issues | 0.000 | 0.067 | 0.600 | 0.133 | 0.067 | 0.133 | 15 |
+| S2 Project Config Issues | 0.242 | 0.000 | 0.485 | 0.061 | 0.061 | 0.152 | 33 |
+| S3 Dependency Failures | 0.169 | 0.011 | 0.452 | 0.333 | 0.011 | 0.023 | 177 |
+| S4 Static Analysis Failures | 0.021 | 0.004 | 0.076 | **0.661** | 0.021 | 0.216 | 236 |
+| S5 Test Failures | 0.030 | 0.030 | **0.697** | 0.030 | 0.045 | 0.167 | 66 |
+| S6 Environment Setup Issues | 0.031 | 0.031 | **0.781** | 0.063 | 0.031 | 0.063 | 32 |
+| S7 Other | 0.125 | 0.000 | **0.875** | 0.000 | 0.000 | 0.000 | 8 |
+
+**Dominant signal per outcome — heatmap (H=high, M=medium, L=low):**
+
+```
+
+Outcome  │  S1    S2    S3    S4    S5    S6    S7
+
+─────────┼──────────────────────────────────────────
+
+A     │   L     H     M     L     L     L     M
+
+B     │   M     L     L     L     L     L     L
+
+C     │   H     H     H     L     H     H     H   ← weak (too broad)
+
+D     │   M     L     M    [H]    L     L     L   ← strong for S4
+
+E     │   M     M     L     L     L     L     L
+
+F     │   M     H     L     M     H     L     L
+
+```
+
+### Key Observations
+
+1. **D is a strong positive signal for S4** — 66.1% of Static Analysis Failures first fail at a lint/format step. Observing D concentrates beliefs heavily on S4.
+
+2. **C dominates 5 of 7 states** — Makes C a weak discriminator. Many CI setups surface install/build errors inside the test runner job name (e.g., named "Run tests"), not a dedicated install step.
+
+3. **F captures 21.6% of S4** — Tools like `isort`, `yapf`, `tox`, `pyupgrade` are static analysis tools not in the D keyword list. Expanding that list is a V2 improvement.
+
+4. **S3 shows D=33.3%** — Many dependency failures surface at import time during pytest collection, not during `pip install`. E1 alone cannot cleanly separate S3 from S4.
+
+### EIG for E1
+
+**Expected Information Gain** = how many bits of uncertainty E1 removes on average.
+
+```
+
+EIG(E1) = H(S) - sum_outcome [ P(outcome) \* H(S | outcome) ]
+
+= 2.110 - 1.752
+
+= 0.358 bits
+
+```
+
+| Outcome | P(outcome) | H(S given outcome) | Entropy drop |
+|---|---|---|---|
+| A — Install | 0.0877 | 1.8273 | +0.28 bits |
+| B — Build | 0.0214 | 2.6370 | -0.53 bits (increases uncertainty) |
+| C — Test | 0.3315 | 2.2977 | -0.19 bits (increases uncertainty) |
+| D — Static Analysis | **0.3910** | **1.1878** | **+0.92 bits** |
+| E — Workflow/Env | 0.0329 | 2.5468 | -0.44 bits (increases uncertainty) |
+| F — Ambiguous | 0.1356 | 1.6655 | +0.44 bits |
+
+D is overwhelmingly the most informative outcome. B, C, and E \*increase\* posterior entropy because they are evenly spread across states.
 
 ---
 
-## 9. Limitations & Assumptions
+## 7. Evidence Source E2 — Changed Files in the Fix Commit
 
-1. **Priors from Java, applied to Python.** We assume CI failure frequencies are language-agnostic at the pipeline-structure level. This is unverified.
+### What it means
 
-2. **Likelihoods are gut estimates, not empirical.** Every P(evidence | state) is a reasoned assumption backed by structural arguments (stage gating, error vocabulary), but the exact decimals are not measured from data.
+The files changed between the failing commit (`sha_fail`) and the fixing commit (`sha_success`) reveal the category of the fix. A fix touching only `.py` source files implies a source code or lint problem; a fix touching `pyproject.toml` implies config or dependency issues; a fix touching many file types at once implies a multi-component problem.
 
-3. **EIG is a planning-time average.** It does not tell you how reliably informative a check is — only how informative it is in expectation. E2 is bimodal: sometimes brilliant (A, C, D), sometimes muddy (B, E, F). EIG alone hides this variance.
+**Key framing:** We observe the \*fix diff\*, not the \*failure diff\*. In live agent use this corresponds to the diff between the head commit and the last known green commit on the same branch — obtainable from GitHub API.
 
-4. **Manual likelihood lookups are error-prone.** At 8x8 table width, off-by-one column references are a real failure mode. An eventual simulator should automate this.
+```mermaid
 
-5. **Costs are approximate.** "Agent-seconds" is an arbitrary unit. Real deployment would need API quota costs, LLM token pricing, and human review time measured in dollars.
+graph TD
 
-6. **E4's "mixed" outcome is nearly useless.** It occurs ~11% of the time and provides almost zero information (entropy drop = 0.012 bits). In a monorepo where every PR touches multiple categories, this outcome's probability rises and E4's value drops further.
+DIFF["changed_files\nList of file paths in fix commit"]
 
-7. **The P3 vs P7 confound is unresolved by any single evidence source.** Both E2-A and E3-γ conflate dependency failures with environment setup issues. Only the combination of E2 + E3 + E4 can partially resolve it, and even then, E4=none leaves ambiguity.
+DIFF --> CI_F["ci\n.github/, Dockerfile,\n.python-version, \*.yml"]
+
+DIFF --> CFG["config\npyproject.toml, requirements.txt,\npoetry.lock, setup.cfg"]
+
+DIFF --> TST["test\ntests/, test_\*.py,\n\*_test.py"]
+
+DIFF --> DOC["doc\n.rst, .md, .txt"]
+
+DIFF --> SRC["src\n\*.py / \*.pyi\n(not test/config/ci/doc)"]
+
+DIFF --> MIX["mixed\n2+ categories present"]
+
+DIFF --> NON["none\nempty list"]
+
+```
+
+### How to extract from dataset
+
+**Dataset column:** `changed_files` — type `List[String]`
+
+**File classification rule (applied per file, priority order):**
+
+| Category | Rule |
+|---|---|
+| **ci** | Path contains `.github/` OR filename in `Dockerfile\*`, `.python-version`, `.env`, `tox.ini` OR ext in `.yaml`, `.yml`, `.sh` |
+| **config** | Filename in `pyproject.toml`, `requirements\*.txt`, `poetry.lock`, `uv.lock`, `Pipfile\*`, `setup.cfg`, `setup.py`, `pytest.ini`, `mypy.ini` OR ext in `.toml`, `.cfg`, `.in` |
+| **test** | Path contains `/test` or `/tests/` OR filename matches `test_\*` or `\*_test.py` |
+| **doc** | Ext in `.rst`, `.md`, `.txt` (non-requirements) |
+| **src** | Ext in `.py` or `.pyi` (not matched above) |
+| **other** | Anything else — merged into `mixed` |
+
+**Row-level rule:** single category throughout → that category; 2+ categories → `mixed`; empty list → `none`.
+
+### Evidence Outcomes
+
+Seven mutually exclusive, exhaustive outcomes: **src · test · config · ci · doc · mixed · none**
+
+### Likelihood Table
+
+**Method:** Cross-tabulation of `primary_hidden_state` × file category (567 rows). `other` merged into `mixed`. Laplace add-1 smoothing. Rows re-normalised.
+
+**Smoothed likelihood table `P(file_cat | state)`:**
+
+| Hidden State | src | test | config | ci | doc | mixed | none |
+|---|---|---|---|---|---|---|---|
+| S1 Source Code Issues | **0.4091** | 0.1818 | 0.0455 | 0.0455 | 0.0455 | 0.2273 | 0.0455 |
+| S2 Project Config Issues | 0.1250 | 0.1000 | 0.0750 | 0.0250 | 0.0250 | **0.6000** | 0.0500 |
+| S3 Dependency Failures | 0.2011 | 0.0272 | 0.0272 | 0.0109 | 0.0054 | **0.7228** | 0.0054 |
+| S4 Static Analysis Failures | **0.5309** | 0.0947 | 0.0123 | 0.0041 | 0.0082 | 0.3457 | 0.0041 |
+| S5 Test Failures | 0.2192 | **0.3151** | 0.0137 | 0.0137 | 0.0137 | 0.4110 | 0.0137 |
+| S6 Environment Setup Issues | **0.3590** | 0.0769 | 0.0256 | 0.0256 | 0.0256 | **0.4615** | 0.0256 |
+| S7 Other | 0.0667 | **0.4000** | 0.0667 | 0.0667 | 0.0667 | 0.2667 | 0.0667 |
+
+**Raw empirical percentages (pre-smoothing):**
+
+| Hidden State | src | test | config | ci | doc | mixed | none | n |
+|---|---|---|---|---|---|---|---|---|
+| S1 Source Code Issues | **0.533** | 0.200 | 0.000 | 0.000 | 0.000 | 0.267 | 0.000 | 15 |
+| S2 Project Config Issues | 0.121 | 0.091 | 0.061 | 0.000 | 0.000 | **0.697** | 0.030 | 33 |
+| S3 Dependency Failures | 0.203 | 0.023 | 0.023 | 0.006 | 0.000 | **0.746** | 0.000 | 177 |
+| S4 Static Analysis Failures | **0.542** | 0.093 | 0.008 | 0.000 | 0.004 | 0.352 | 0.000 | 236 |
+| S5 Test Failures | 0.227 | **0.333** | 0.000 | 0.000 | 0.000 | 0.439 | 0.000 | 66 |
+| S6 Environment Setup Issues | 0.406 | 0.063 | 0.000 | 0.000 | 0.000 | **0.531** | 0.000 | 32 |
+| S7 Other | 0.000 | **0.625** | 0.000 | 0.000 | 0.000 | 0.375 | 0.000 | 8 |
+
+**Dominant signal per outcome:**
+
+```
+
+Outcome  │  S1    S2    S3    S4    S5    S6    S7
+
+─────────┼──────────────────────────────────────────
+
+src    │  [H]    L     M    [H]    M     M     L   ← strong for S1 & S4
+
+test   │   M     L     L     L    [H]    L    [H]
+
+config │   L     M     L     L     L     L     L   ← too sparse
+
+ci     │   L     L     L     L     L     L     L   ← too sparse
+
+doc    │   L     L     L     L     L     L     L   ← too sparse
+
+mixed  │   L    [H]   [H]    M     H     H     M   ← weak (too broad)
+
+none   │   L     L     L     L     L     L     L   ← near zero everywhere
+
+```
+
+### Key Observations
+
+1. **`mixed` dominates for S2 and S3** — Dependency fixes typically touch `poetry.lock` + `src/` files simultaneously. This limits E2's power for those states.
+
+2. **`src` is the strongest positive signal for S4** — 54.2% of Static Analysis fixes only modify `.py` source files (the developer fixed the lint violation in the code).
+
+3. **`config` and `ci` are too sparse to be reliable** — Only 8 pure-config rows and 1 pure-ci row in 567 rows. These outcomes are almost entirely determined by Laplace smoothing, not data.
+
+4. **`none` is near-zero for all states** — Every repair in the benchmark changes at least one file. This outcome carries almost no signal.
+
+### EIG for E2
+
+```
+
+EIG(E2) = H(S) - sum_outcome [ P(outcome) \* H(S | outcome) ]
+
+= 2.110 - 1.937
+
+= 0.173 bits   (at prior)
+
+EIG(E2 | after observing E1=D) = 1.033 bits   (see §9 worked example)
+
+```
+
+| Outcome | P(outcome) | H(S given outcome) | Entropy drop |
+|---|---|---|---|
+| src | **0.3486** | 1.6721 | +0.44 bits |
+| test | 0.1052 | 2.2044 | -0.09 bits |
+| config | 0.0232 | 2.3909 | -0.28 bits |
+| ci | 0.0117 | 2.6867 | -0.58 bits |
+| doc | 0.0117 | 2.6857 | -0.58 bits |
+| mixed | **0.4881** | 1.9926 | +0.12 bits |
+| none | 0.0115 | 2.7253 | -0.62 bits |
+
+E2 is weak at the prior (only 0.17 bits) but becomes highly valuable \*after\* E1 has concentrated beliefs — its EIG jumps to 1.03 bits after observing E1=D.
 
 ---
 
-## 10. Audit Data
+## 8. Evidence Source Summary and Query Order
+
+| Evidence | Dataset Column | EIG at prior | Default Order |
+|---|---|---|---|
+| E1 — Pipeline Step | `failed_jobs` | **0.358 bits** | 1st |
+| E2 — Changed Files | `changed_files` | 0.173 bits | 2nd |
+
+**Excluded:** `error_type` — this column is the direct source used to derive `primary_hidden_state`. Using it as evidence would be data leakage.
+
+**Query order is dynamic:**
+
+```mermaid
+
+flowchart TD
+
+START([Prior beliefs]) --> Q1[Query E1\nPipeline step]
+
+Q1 -- "D observed\nS4 posterior = 0.69\nThreshold met" --> ACT1[Act immediately\nor query E2 for\nextra confidence]
+
+Q1 -- "C observed\nbeliefs still spread" --> Q2[Query E2\nChanged files]
+
+Q1 -- "A observed\nS2 and S3 rise" --> Q2
+
+Q2 -- "src observed\nS4 rises further" --> ACT2[Fix the code]
+
+Q2 -- "mixed observed\nno clear winner" --> ESC[Escalate]
+
+ACT1 --> DONE([Done])
+
+ACT2 --> DONE
+
+ESC --> DONE
+
+```
+
+---
+
+## 9. Full Bayesian Update Example
+
+**Scenario:** A CI run fails. Agent queries E1 first, then E2.
+
+### Step 0 — Prior beliefs
+
+```
+
+State                      P(S)
+
+──────────────────────────────────
+
+S4 Static Analysis        0.4162  ████████████████████
+
+S3 Dependency             0.3122  ███████████████
+
+S5 Test Failures          0.1164  █████
+
+S2 Project Config         0.0582  ██
+
+S6 Env Setup              0.0564  ██
+
+S1 Source Code            0.0265  █
+
+S7 Other                  0.0141  ·
+
+──────────────────────────────────
+
+Entropy: 2.110 bits
+
+```
+
+### Step 1 — Observe E1 = D (Static Analysis step failed first)
+
+```
+
+Bayes update: posterior[s] = prior[s] \* P(D | s) / Z
+
+State               Prior    P(D|S)   Product    Posterior
+
+────────────────────────────────────────────────────────────
+
+S4 Static Analysis  0.4162 \* 0.6488 = 0.27005  → 0.6907
+
+S3 Dependency       0.3122 \* 0.3279 = 0.10236  → 0.2618
+
+S5 Test Failures    0.1164 \* 0.0417 = 0.00485  → 0.0124
+
+S2 Project Config   0.0582 \* 0.0769 = 0.00448  → 0.0114
+
+S6 Env Setup        0.0564 \* 0.0789 = 0.00445  → 0.0114
+
+S1 Source Code      0.0265 \* 0.1429 = 0.00378  → 0.0097
+
+S7 Other            0.0141 \* 0.0714 = 0.00101  → 0.0026
+
+───────
+
+Normaliser Z = 0.3910
+
+Entropy after E1=D: 1.188 bits  (was 2.110 — dropped 0.922 bits)
+
+```
+
+```
+
+Posterior after E1=D
+
+──────────────────────────────────────────────────
+
+S4 Static Analysis   ██████████████████████  69.1%
+
+S3 Dependency        ████████               26.2%
+
+S5 Test Failures     ·                       1.2%
+
+others               ·                       3.5%
+
+──────────────────────────────────────────────────
+
+P(S1) + P(S2) + P(S4) = 0.0097 + 0.0114 + 0.6907 = 0.7118  >  0.60  THRESHOLD MET
+
+```
+
+Action threshold is already met. The agent can act now — or query E2 to gain more confidence. EIG(E2 | this posterior) = **1.033 bits**, so querying E2 is worth it.
+
+### Step 2 — Observe E2 = src (only .py source files changed)
+
+```
+
+Bayes update: posterior[s] = post1[s] \* P(src | s) / Z
+
+State               Post1    P(src|S)  Product    Posterior
+
+────────────────────────────────────────────────────────────
+
+S4 Static Analysis  0.6907 \* 0.5309 = 0.36669  → 0.8494
+
+S3 Dependency       0.2618 \* 0.2011 = 0.05265  → 0.1220
+
+S5 Test Failures    0.0124 \* 0.2192 = 0.00272  → 0.0063
+
+S6 Env Setup        0.0114 \* 0.3590 = 0.00409  → 0.0095
+
+S1 Source Code      0.0097 \* 0.4091 = 0.00396  → 0.0092
+
+S2 Project Config   0.0114 \* 0.1250 = 0.00143  → 0.0033
+
+S7 Other            0.0026 \* 0.0667 = 0.00017  → 0.0004
+
+───────
+
+Normaliser Z = 0.4317
+
+```
+
+```
+
+Final posterior after E1=D, E2=src
+
+──────────────────────────────────────────────────
+
+S4 Static Analysis   ██████████████████████████  84.9%
+
+S3 Dependency        ████                        12.2%
+
+others               ·                            2.9%
+
+──────────────────────────────────────────────────
+
+P(S1) + P(S2) + P(S4) = 0.0092 + 0.0033 + 0.8494 = 0.8619  >  0.60
+
+```
+
+**ACTION: Fix the code** — generate patch targeting static analysis violations in the changed `.py` source files.
+
+---
+
+## 10. Limitations and Assumptions
+
+1. **Dataset is open-source Python CI only.** Priors will not transfer to private enterprise repos with stricter pre-commit hooks or different language mixes.
+
+2. **`mixed` dominates E2 for many states.** For monorepos where every PR touches many file types, E2's effective EIG drops toward zero. In those environments, deprioritise or drop E2.
+
+3. **E1 step naming is noisy.** The F (Other/Ambiguous) bucket captures 21.6% of S4 cases because tools like `isort`, `tox`, `yapf`, `pyupgrade` are not in the D keyword list. Expanding the keyword list is a V2 improvement.
+
+4. **The first-failed-step assumption breaks for parallel jobs.** When lint and test run in separate parallel jobs and both fail, there is no causal ordering. The extraction rule picks an arbitrary job, introducing noise.
+
+5. **S1 and S7 likelihoods are dominated by smoothing.** With only 15 (S1) and 8 (S7) rows, most probability values are influenced more by the k=1 pseudo-counts than by empirical data. Treat these rows with caution.
+
+6. **Conditional independence assumption.** The update chain treats E1 and E2 as independent given the hidden state. In reality they are correlated — a developer who changes only `src/` files and whose lint step fails are jointly caused by the same event. The posterior after both sources may be more extreme than the true posterior.
+
+7. **S3 vs S6 confound is partially unresolved.** Both states produce install-phase failures (E1=A) and mixed fix diffs (E2=mixed). E1=A is a mild positive for S3 (16.9%) vs S6 (5.3%). Neither source alone is definitive for this pair.
+
+---
+
+## 11. TODO — V2 Improvements
+
+- **[V2] Formal cost matrix.** Define `C(action, true_state)`. Replace fixed thresholds with the optimal decision: `best_action = argmin_a sum_s [ P(s|D) \* C(a, s) ]`.
+
+- **[V2] Convergence criterion.** Stop when `max(posterior) > threshold` OR `EIG of remaining evidence < min_gain`.
+
+- **[V2] More action targets.** Add: generate test fix suggestion (S5), generate environment fix (S6), per-state typed escalation report (S7).
+
+- **[V2] Address conditional independence violation.** Model joint likelihood `P(E1, E2 | S)` empirically. Requires a 7 × 6 × 7 = 294-cell table — feasible with 567 rows but sparse for rare states.
+
+- **[V2] Expand E1 keyword list.** Add `isort`, `tox`, `yapf`, `pyright`, `pyupgrade`, `codestyle`, `semgrep`, `safety` to bucket D. Would reduce F rate from 21.6% to ~5% for S4.
+
+- **[V2] Weighted Laplace smoothing.** Replace uniform k=1 with k proportional to prior prevalence. Better handles the imbalance (S7: 8 rows vs S4: 236 rows).
+
+- **[V2] Validate E2 extraction on raw diffs.** Run file-classification logic on the raw `diff` column and compare against `primary_hidden_state` labels. Measure per-outcome precision/recall before deploying live.
+
+---
+
+## 12. Audit Record
 
 | Item | Value |
-|------|-------|
-| Time of record | 2026-08-23 |
-| Data version | Zheng et al. 2025 (375 Java CI failures) |
-| Model version | 8 hidden states, 3 evidence sources |
-| Policy version | Sequential: E2 → E3 → E4 (conditional) |
-| Prior entropy | 2.6543 bits |
-| Best single EIG | E3 = 1.634 bits |
-| Best EIG/cost | E2 = 3.99 bits/s |
-| Assumed numbers | All likelihoods; all cost figures; Java→Python generalization |
-| Action policy | Fix: P1, P2, P4; Resolve: P3; Escalate: P5, P6, P7, P8 |
+|---|---|
+| Date | 2026-08-24 |
+| Dataset | `ci_repair_bench_disambiguated.parquet` |
+| Dataset rows | 567 |
+| Dataset nulls | 0 |
+| Label column | `primary_hidden_state` |
+| Evidence columns | `failed_jobs` (E1), `changed_files` (E2) |
+| Excluded column | `error_type` — derives `primary_hidden_state`; using as evidence = data leakage |
+| Hidden states | 7 |
+| Prior source | Empirical count from dataset |
+| Likelihood source | Empirical cross-tabulation from dataset |
+| Smoothing | Laplace add-1 (k=1) per cell |
+| Prior entropy H(S) | 2.110 bits |
+| EIG(E1) at prior | 0.358 bits |
+| EIG(E2) at prior | 0.173 bits |
+| EIG(E2) after E1=D | 1.033 bits |
+| Default query order | E1 → E2 |
+| Action policy | V1: two fixed thresholds + escalation fallback |
+| Conditional independence | Assumed (known limitation, see §10 item 6) |
+| EIG(E3) at prior | 0.1201 bits (ASSUMED table — see §13) |
+| EIG(E4) at prior | 0.1930 bits (ASSUMED table — see §13) |
+
+---
+
+## 13. E3 / E4 Evidence Addendum
+
+> **Status:** Both likelihood tables in this section are **ASSUMED**, not empirical. They are reasoned from domain semantics — the same method used to \*interpret\* §6 and §7, but without cross-tabulation against real dataset counts. Treat them as informed priors on behaviour, not measured frequencies.
+
+---
+
+### E3 — Rerun Outcome
+
+**What it means:** If the exact same commit is triggered again on CI without any code change, does the run pass or fail?
+
+**Outcomes:** `pass_on_rerun` · `fail_on_rerun`
+
+**Semantic reasoning per state:**
+
+| State | Reasoning | P(pass_on_rerun) | P(fail_on_rerun) |
+|---|---|---|---|
+| S1 Source Code Issues | Syntax / import / logic errors are fully deterministic — same code, same Python, same failure every time | **0.05** | **0.95** |
+| S2 Project Config Issues | Malformed `pyproject.toml` or missing metadata is static — re-reading the same file produces the same error | **0.05** | **0.95** |
+| S3 Dependency Failures | Broken lockfiles and pinned version conflicts are deterministic; a small fraction of failures are transient registry timeouts that may self-heal | **0.15** | **0.85** |
+| S4 Static Analysis Failures | Linter output is a pure function of file content — same files, same violation, same failure | **0.03** | **0.97** |
+| S5 Test Failures | Mixed: genuine assertion failures are deterministic; ~30% of "test failures" in the wild are secretly flaky (timing, ordering, shared state) | **0.35** | **0.65** |
+| S6 Environment Setup Issues | Runner-instance-specific: missing OS package or wrong Python version is often resolved by a fresh runner allocation or image cache refresh | **0.50** | **0.50** |
+| S7 Other | Network flakes, API rate limits, OOM kills — by definition non-deterministic; most resolve on rerun | **0.75** | **0.25** |
+
+**Smoothed likelihood table `P(rerun_outcome | state)`** \*(values are exact — binary outcomes need no Laplace smoothing):\*
+
+| Hidden State | pass_on_rerun | fail_on_rerun |
+|---|---|---|
+| S1 Source Code Issues | 0.0500 | 0.9500 |
+| S2 Project Config Issues | 0.0500 | 0.9500 |
+| S3 Dependency Failures | 0.1500 | 0.8500 |
+| S4 Static Analysis Failures | 0.0300 | 0.9700 |
+| S5 Test Failures | 0.3500 | 0.6500 |
+| S6 Environment Setup Issues | 0.5000 | 0.5000 |
+| S7 Other | 0.7500 | 0.2500 |
+
+**Dominant signal:**
+
+- `pass_on_rerun` → strongly suggests S6 or S7; moderately suggests S5
+
+- `fail_on_rerun` → weak positive for S1/S2/S4 (already likely from prior); weakly rules out S7
+
+**EIG(E3) at prior: `0.1201 bits`**
+
+E3 is the weakest of the four sources at the prior. It becomes more useful \*after\* E1 or E2 have already ruled out the deterministic states — at that point observing `pass_on_rerun` is strong evidence for S6/S7.
+
+---
+
+### E4 — Local Reproducibility
+
+**What it means:** Does the failure reproduce when a developer runs the same commit on their local machine?
+
+**Outcomes:** `reproducible_locally` · `not_reproducible_locally`
+
+**Semantic reasoning per state:**
+
+| State | Reasoning | P(reproducible_locally) | P(not_reproducible_locally) |
+|---|---|---|---|
+| S1 Source Code Issues | Same Python interpreter, same source file — syntax and import errors always reproduce locally | **0.92** | **0.08** |
+| S2 Project Config Issues | Same `pyproject.toml` is read locally; minor gap from local build caches that may mask missing metadata | **0.80** | **0.20** |
+| S3 Dependency Failures | Local environments often have cached or pre-resolved packages that CI's clean `pip install` doesn't — the conflict may not surface locally | **0.45** | **0.55** |
+| S4 Static Analysis Failures | Same linter, same code → reproduces if developer has the same tool version (common in projects with pinned pre-commit hooks) | **0.88** | **0.12** |
+| S5 Test Failures | Mostly reproducible; some failures depend on CI-specific environment variables, test ordering seeds, or parallelism that differs locally | **0.70** | **0.30** |
+| S6 Environment Setup Issues | Missing `gcc`, wrong Python runtime, broken image — these are runner-infrastructure-specific and almost never affect a developer's local machine | **0.12** | **0.88** |
+| S7 Other | Network calls, rate limits, OOM kills — local machines have different network policies and memory limits; rarely reproduced | **0.15** | **0.85** |
+
+**Smoothed likelihood table `P(local_repro | state)`** \*(exact — binary outcomes):\*
+
+| Hidden State | reproducible_locally | not_reproducible_locally |
+|---|---|---|
+| S1 Source Code Issues | 0.9200 | 0.0800 |
+| S2 Project Config Issues | 0.8000 | 0.2000 |
+| S3 Dependency Failures | 0.4500 | 0.5500 |
+| S4 Static Analysis Failures | 0.8800 | 0.1200 |
+| S5 Test Failures | 0.7000 | 0.3000 |
+| S6 Environment Setup Issues | 0.1200 | 0.8800 |
+| S7 Other | 0.1500 | 0.8500 |
+
+**Dominant signal:**
+
+- `not_reproducible_locally` → strong positive for S6 and S7; mild positive for S3
+
+- `reproducible_locally` → mild positive for S1/S4; mildly rules out S6/S7
+
+**EIG(E4) at prior: `0.1930 bits`**
+
+E4 is the second-weakest source at the prior (after E3) but is the strongest of the two assumed sources. Its key discriminating power is in the S6/S7 pair — the only states with `not_reproducible_locally` probabilities above 0.80.
+
+---
+
+### Query order note
+
+In the greedy EIG agent loop, E1 (0.358 bits) is selected first in **100% of cases** at the prior. E4 (0.193 bits) outranks E2 (0.173 bits) and E3 (0.120 bits) at the prior, so it is selected second when E1 observation leaves beliefs diffuse. The actual second source varies per case depending on how much E1 concentrates the posterior.
+
+---
+
+### Audit record addendum
+
+| Item | Value |
+|---|---|
+| E3 source | ASSUMED — domain semantic reasoning |
+| E4 source | ASSUMED — domain semantic reasoning |
+| E3 outcomes | `pass_on_rerun`, `fail_on_rerun` |
+| E4 outcomes | `reproducible_locally`, `not_reproducible_locally` |
+| Smoothing applied | None (binary outcomes — no zero-probability cells possible) |
+| EIG(E3) at prior | 0.1201 bits |
+| EIG(E4) at prior | 0.1930 bits |
+| Test cases generated | 100 (seed 42, sampled from 567-row dataset) |
+| Output file | `data/ci_agent_test_cases_v2.jsonl` |
+| All evidence | Synthetically sampled conditioned on `ground_truth_state` |
