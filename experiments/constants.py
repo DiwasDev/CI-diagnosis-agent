@@ -1,154 +1,193 @@
-"""Shared constants and helpers for the CI diagnosis notebook."""
+"""
+Constants for CI diagnosis agent policies.
 
-from __future__ import annotations
+Priors and likelihoods from probability_decision_record.md
+Action costs and evidence costs from decisions/costs.md
+"""
 
-STATES = ["S1", "S2", "S3", "S4", "S5", "S6", "S7"]
+import math
+
+# ============================================================================
+# HIDDEN STATES
+# ============================================================================
+
+STATES = [
+    "S1_source_code_issues",
+    "S2_project_config_issues",
+    "S3_dependency_failures",
+    "S4_static_analysis_failures",
+    "S5_test_failures",
+    "S6_environment_setup_issues",
+    "S7_other",
+]
+
+# ============================================================================
+# PRIORS (from probability_decision_record.md §3)
+# ============================================================================
 
 PRIORS = {
-    "S1": 0.0265,
-    "S2": 0.0582,
-    "S3": 0.3122,
-    "S4": 0.4162,
-    "S5": 0.1164,
-    "S6": 0.0564,
-    "S7": 0.0141,
+    "S1_source_code_issues": 0.0265,
+    "S2_project_config_issues": 0.0582,
+    "S3_dependency_failures": 0.3122,
+    "S4_static_analysis_failures": 0.4162,
+    "S5_test_failures": 0.1164,
+    "S6_environment_setup_issues": 0.0564,
+    "S7_other": 0.0141,
 }
 
-ACTION_LABELS = ["Escalate", "Fix Dependency", "Fix Lint"]
-ACTION_ORDER = ["Escalate", "Fix Dependency", "Fix Lint"]
-STATE_TO_ACTION = {
-    "S1": "Fix Lint",
-    "S2": "Fix Lint",
-    "S3": "Fix Dependency",
-    "S4": "Fix Lint",
-    "S5": "Escalate",
-    "S6": "Escalate",
-    "S7": "Escalate",
-}
-EVIDENCE_ORDER = ["E1", "E2", "E3", "E4"]
+# ============================================================================
+# LIKELIHOODS (from probability_decision_record.md §6-13)
+# ============================================================================
 
-EVIDENCE_COSTS = {
-    "E1": 0.0,
-    "E2": 0.0,
-    "E3": 0.07,
-    "E4": 33.33,
+# E1: Pipeline Step outcomes [A_install, B_build, C_test, D_static_analysis, E_workflow, F_other]
+LIKELIHOODS_E1 = {
+    "S1_source_code_issues": {"A_install": 0.0476, "B_build": 0.0952, "C_test": 0.4762, "D_static_analysis": 0.1429, "E_workflow": 0.0952, "F_other": 0.1429},
+    "S2_project_config_issues": {"A_install": 0.2308, "B_build": 0.0256, "C_test": 0.4359, "D_static_analysis": 0.0769, "E_workflow": 0.0769, "F_other": 0.1538},
+    "S3_dependency_failures": {"A_install": 0.1694, "B_build": 0.0164, "C_test": 0.4426, "D_static_analysis": 0.3279, "E_workflow": 0.0164, "F_other": 0.0273},
+    "S4_static_analysis_failures": {"A_install": 0.0248, "B_build": 0.0083, "C_test": 0.0785, "D_static_analysis": 0.6488, "E_workflow": 0.0248, "F_other": 0.2149},
+    "S5_test_failures": {"A_install": 0.0417, "B_build": 0.0417, "C_test": 0.6528, "D_static_analysis": 0.0417, "E_workflow": 0.0556, "F_other": 0.1667},
+    "S6_environment_setup_issues": {"A_install": 0.0526, "B_build": 0.0526, "C_test": 0.6842, "D_static_analysis": 0.0789, "E_workflow": 0.0526, "F_other": 0.0789},
+    "S7_other": {"A_install": 0.1429, "B_build": 0.0714, "C_test": 0.5714, "D_static_analysis": 0.0714, "E_workflow": 0.0714, "F_other": 0.0714},
 }
+
+# E2: Changed Files outcomes [src, test, config, ci, doc, mixed, none]
+LIKELIHOODS_E2 = {
+    "S1_source_code_issues": {"src": 0.4091, "test": 0.1818, "config": 0.0455, "ci": 0.0455, "doc": 0.0455, "mixed": 0.2273, "none": 0.0455},
+    "S2_project_config_issues": {"src": 0.1250, "test": 0.1000, "config": 0.0750, "ci": 0.0250, "doc": 0.0250, "mixed": 0.6000, "none": 0.0500},
+    "S3_dependency_failures": {"src": 0.2011, "test": 0.0272, "config": 0.0272, "ci": 0.0109, "doc": 0.0054, "mixed": 0.7228, "none": 0.0054},
+    "S4_static_analysis_failures": {"src": 0.5309, "test": 0.0947, "config": 0.0123, "ci": 0.0041, "doc": 0.0082, "mixed": 0.3457, "none": 0.0041},
+    "S5_test_failures": {"src": 0.2192, "test": 0.3151, "config": 0.0137, "ci": 0.0137, "doc": 0.0137, "mixed": 0.4110, "none": 0.0137},
+    "S6_environment_setup_issues": {"src": 0.3590, "test": 0.0769, "config": 0.0256, "ci": 0.0256, "doc": 0.0256, "mixed": 0.4615, "none": 0.0256},
+    "S7_other": {"src": 0.0667, "test": 0.4000, "config": 0.0667, "ci": 0.0667, "doc": 0.0667, "mixed": 0.2667, "none": 0.0667},
+}
+
+# E3: Rerun Outcome [pass_on_rerun, fail_on_rerun]
+LIKELIHOODS_E3 = {
+    "S1_source_code_issues": {"pass_on_rerun": 0.0500, "fail_on_rerun": 0.9500},
+    "S2_project_config_issues": {"pass_on_rerun": 0.0500, "fail_on_rerun": 0.9500},
+    "S3_dependency_failures": {"pass_on_rerun": 0.1500, "fail_on_rerun": 0.8500},
+    "S4_static_analysis_failures": {"pass_on_rerun": 0.0300, "fail_on_rerun": 0.9700},
+    "S5_test_failures": {"pass_on_rerun": 0.3500, "fail_on_rerun": 0.6500},
+    "S6_environment_setup_issues": {"pass_on_rerun": 0.5000, "fail_on_rerun": 0.5000},
+    "S7_other": {"pass_on_rerun": 0.7500, "fail_on_rerun": 0.2500},
+}
+
+# E4: Local Reproducibility [reproducible_locally, not_reproducible_locally]
+LIKELIHOODS_E4 = {
+    "S1_source_code_issues": {"reproducible_locally": 0.92, "not_reproducible_locally": 0.08},
+    "S2_project_config_issues": {"reproducible_locally": 0.80, "not_reproducible_locally": 0.20},
+    "S3_dependency_failures": {"reproducible_locally": 0.45, "not_reproducible_locally": 0.55},
+    "S4_static_analysis_failures": {"reproducible_locally": 0.90, "not_reproducible_locally": 0.10},
+    "S5_test_failures": {"reproducible_locally": 0.40, "not_reproducible_locally": 0.60},
+    "S6_environment_setup_issues": {"reproducible_locally": 0.25, "not_reproducible_locally": 0.75},
+    "S7_other": {"reproducible_locally": 0.15, "not_reproducible_locally": 0.85},
+}
+
+# Unified likelihood structure for use in policies
+LIKELIHOODS = {
+    "E1": LIKELIHOODS_E1,
+    "E2": LIKELIHOODS_E2,
+    "E3": LIKELIHOODS_E3,
+    "E4": LIKELIHOODS_E4,
+}
+
+# ============================================================================
+# ACTIONS
+# ============================================================================
+
+ACTIONS = ["Fix Code", "Fix Dependency", "Escalate"]
+ACTION_LABELS = ["Fix Code", "Fix Dependency", "Escalate"]
+ACTION_ORDER = ["Fix Code", "Fix Dependency", "Escalate"]
+
+# ============================================================================
+# ACTION COSTS (from decisions/costs.md)
+# ============================================================================
 
 ACTION_COSTS = {
-    "Escalate": {
-        "S1": 50.0,
-        "S2": 50.0,
-        "S3": 50.0,
-        "S4": 50.0,
-        "S5": 50.0,
-        "S6": 50.0,
-        "S7": 50.0,
+    "Fix Code": {
+        "S1_source_code_issues": 8.33,
+        "S2_project_config_issues": 8.33,
+        "S3_dependency_failures": 75.07,
+        "S4_static_analysis_failures": 8.33,
+        "S5_test_failures": 75.07,
+        "S6_environment_setup_issues": 75.07,
+        "S7_other": 75.07,
     },
     "Fix Dependency": {
-        "S1": 75.07,
-        "S2": 75.07,
-        "S3": 8.33,
-        "S4": 75.07,
-        "S5": 75.07,
-        "S6": 75.07,
-        "S7": 75.07,
+        "S1_source_code_issues": 75.07,
+        "S2_project_config_issues": 75.07,
+        "S3_dependency_failures": 8.33,
+        "S4_static_analysis_failures": 75.07,
+        "S5_test_failures": 75.07,
+        "S6_environment_setup_issues": 75.07,
+        "S7_other": 75.07,
     },
-    "Fix Lint": {
-        "S1": 8.33,
-        "S2": 8.33,
-        "S3": 75.07,
-        "S4": 8.33,
-        "S5": 75.07,
-        "S6": 75.07,
-        "S7": 75.07,
+    "Escalate": {
+        "S1_source_code_issues": 50.00,
+        "S2_project_config_issues": 50.00,
+        "S3_dependency_failures": 50.00,
+        "S4_static_analysis_failures": 50.00,
+        "S5_test_failures": 50.00,
+        "S6_environment_setup_issues": 50.00,
+        "S7_other": 50.00,
     },
 }
 
-E1_LIKELIHOODS = {
-    "S1": {"A": 0.0476, "B": 0.0952, "C": 0.4762, "D": 0.1429, "E": 0.0952, "F": 0.1429},
-    "S2": {"A": 0.2308, "B": 0.0256, "C": 0.4359, "D": 0.0769, "E": 0.0769, "F": 0.1538},
-    "S3": {"A": 0.1694, "B": 0.0164, "C": 0.4426, "D": 0.3279, "E": 0.0164, "F": 0.0273},
-    "S4": {"A": 0.0248, "B": 0.0083, "C": 0.0785, "D": 0.6488, "E": 0.0248, "F": 0.2149},
-    "S5": {"A": 0.0417, "B": 0.0417, "C": 0.6528, "D": 0.0417, "E": 0.0556, "F": 0.1667},
-    "S6": {"A": 0.0526, "B": 0.0526, "C": 0.6842, "D": 0.0789, "E": 0.0526, "F": 0.0789},
-    "S7": {"A": 0.1429, "B": 0.0714, "C": 0.5714, "D": 0.0714, "E": 0.0714, "F": 0.0714},
+# ============================================================================
+# EVIDENCE COSTS (from decisions/costs.md)
+# ============================================================================
+
+EVIDENCE_COSTS = {
+    "E1": 0.00,     # Pipeline Step (free)
+    "E2": 0.00,     # Changed Files (free)
+    "E3": 0.07,     # Rerun Outcome ($0.07 for 12 min GitHub runner)
+    "E4": 33.33,    # Local Repro ($33.33 for 20 min developer time)
 }
 
-E2_LIKELIHOODS = {
-    "S1": {"src": 0.4091, "test": 0.1818, "config": 0.0455, "ci": 0.0455, "doc": 0.0455, "mixed": 0.2273, "none": 0.0455},
-    "S2": {"src": 0.1250, "test": 0.1000, "config": 0.0750, "ci": 0.0250, "doc": 0.0250, "mixed": 0.6000, "none": 0.0500},
-    "S3": {"src": 0.2011, "test": 0.0272, "config": 0.0272, "ci": 0.0109, "doc": 0.0054, "mixed": 0.7228, "none": 0.0054},
-    "S4": {"src": 0.5309, "test": 0.0947, "config": 0.0123, "ci": 0.0041, "doc": 0.0082, "mixed": 0.3457, "none": 0.0041},
-    "S5": {"src": 0.2192, "test": 0.3151, "config": 0.0137, "ci": 0.0137, "doc": 0.0137, "mixed": 0.4110, "none": 0.0137},
-    "S6": {"src": 0.3590, "test": 0.0769, "config": 0.0256, "ci": 0.0256, "doc": 0.0256, "mixed": 0.4615, "none": 0.0256},
-    "S7": {"src": 0.0667, "test": 0.4000, "config": 0.0667, "ci": 0.0667, "doc": 0.0667, "mixed": 0.2667, "none": 0.0667},
+EVIDENCE_ORDER = ["E1", "E2", "E3", "E4"]
+
+# ============================================================================
+# STATE-TO-ACTION MAPPING (Policy P1: map best state to action)
+# ============================================================================
+
+STATE_TO_ACTION = {
+    "S1_source_code_issues": "Fix Code",
+    "S2_project_config_issues": "Fix Code",
+    "S3_dependency_failures": "Fix Dependency",
+    "S4_static_analysis_failures": "Fix Code",
+    "S5_test_failures": "Escalate",
+    "S6_environment_setup_issues": "Escalate",
+    "S7_other": "Escalate",
 }
 
-E3_LIKELIHOODS = {
-    "S1": {"pass_on_rerun": 0.05, "fail_on_rerun": 0.95},
-    "S2": {"pass_on_rerun": 0.05, "fail_on_rerun": 0.95},
-    "S3": {"pass_on_rerun": 0.15, "fail_on_rerun": 0.85},
-    "S4": {"pass_on_rerun": 0.03, "fail_on_rerun": 0.97},
-    "S5": {"pass_on_rerun": 0.35, "fail_on_rerun": 0.65},
-    "S6": {"pass_on_rerun": 0.50, "fail_on_rerun": 0.50},
-    "S7": {"pass_on_rerun": 0.75, "fail_on_rerun": 0.25},
-}
+# ============================================================================
+# BAYES UPDATE HELPER
+# ============================================================================
 
-E4_LIKELIHOODS = {
-    "S1": {"reproducible_locally": 0.92, "not_reproducible_locally": 0.08},
-    "S2": {"reproducible_locally": 0.80, "not_reproducible_locally": 0.20},
-    "S3": {"reproducible_locally": 0.45, "not_reproducible_locally": 0.55},
-    "S4": {"reproducible_locally": 0.88, "not_reproducible_locally": 0.12},
-    "S5": {"reproducible_locally": 0.70, "not_reproducible_locally": 0.30},
-    "S6": {"reproducible_locally": 0.12, "not_reproducible_locally": 0.88},
-    "S7": {"reproducible_locally": 0.15, "not_reproducible_locally": 0.85},
-}
-
-LIKELIHOODS = {
-    "E1": E1_LIKELIHOODS,
-    "E2": E2_LIKELIHOODS,
-    "E3": E3_LIKELIHOODS,
-    "E4": E4_LIKELIHOODS,
-}
-
-
-def bayes_update(posterior, evidence_key, evidence_value):
-    updated = {}
+def bayes_update(posterior, evidence_key, outcome):
+    """
+    Update posterior given an evidence source and observed outcome.
+    
+    Args:
+        posterior: dict[state] -> P(state | previous evidence)
+        evidence_key: "E1", "E2", "E3", or "E4"
+        outcome: observed outcome (e.g., "C_test", "src", "fail_on_rerun", etc.)
+    
+    Returns:
+        Updated posterior dict[state] -> P(state | previous + new evidence)
+    """
+    likelihoods = LIKELIHOODS[evidence_key]
+    
+    # Numerator: prior (or posterior from previous update) * likelihood
+    unnormalised = {}
     for state in STATES:
-        updated[state] = posterior[state] * LIKELIHOODS[evidence_key][state][evidence_value]
-    total = sum(updated.values())
-    return {state: updated[state] / total for state in STATES}
-
-
-def compute_v1_case_cost(row):
-    posterior = PRIORS.copy()
-    info_cost = 0.0
-    evidence_path = []
-    chosen_action = "Escalate"
-
-    for evidence_key in EVIDENCE_ORDER:
-        outcome = row.get(f"{evidence_key}_outcome")
-        if outcome is None:
-            break
-
-        posterior = bayes_update(posterior, evidence_key, outcome)
-        info_cost += EVIDENCE_COSTS[evidence_key]
-        evidence_path.append((evidence_key, outcome))
-        chosen_action = action_from_posterior(posterior)
-        if chosen_action in {"Fix Lint", "Fix Dependency"}:
-            break
-
-    state = row.get("ground_truth")
-    decision_cost = ACTION_COSTS[chosen_action][state]
-    return {
-        "ground_truth": state,
-        "evidence_path": evidence_path,
-        "action": chosen_action,
-        "info_cost": info_cost,
-        "decision_cost": decision_cost,
-        "total_cost": info_cost + decision_cost,
-    }
-
-
-def run_v1_policy(row):
-    return compute_v1_case_cost(row)["action"]
+        likelihood = likelihoods[state].get(outcome, 0.0)
+        unnormalised[state] = posterior[state] * likelihood
+    
+    # Normalise
+    z = sum(unnormalised.values())
+    if z == 0:
+        # If no state has non-zero likelihood for this outcome, return prior
+        return posterior.copy()
+    
+    return {state: unnormalised[state] / z for state in STATES}
