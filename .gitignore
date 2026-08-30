@@ -8,6 +8,7 @@ data/benchmark_data/temp.txt
 test.txt
 *.txt
 !requirements.txt
+week2-probabilistic-view-of-ai-agents (1).pdf
 
 # Jupyter Notebook checkpoints
 .ipynb_checkpoints/

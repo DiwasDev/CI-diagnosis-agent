@@ -1,7 +1,7 @@
 # P4 Failures Analysis
 
-**Total Failures:** 185 / 500
-**Failure Rate:** 37.0%
+**Total Failures:** 195 / 500
+**Failure Rate:** 39.0%
 
 ## Top 5 Most Expensive Failures
 
