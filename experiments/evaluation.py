@@ -66,6 +66,9 @@ def evaluate(policy, cases: pd.DataFrame, evidence_costs: dict | None = None) ->
 def summarize(policy_name: str, records: pd.DataFrame) -> dict:
     """Classification, cost, and escalation metrics for one evaluated policy."""
     predictions = records["prediction"]
+    decision_cost = records["decision_cost"].sum()
+    info_cost = records["info_cost"].sum()
+    total_cost = decision_cost + info_cost
     return {
         "policy": policy_name,
         "accuracy": accuracy_score(records["ground_action"], predictions),
@@ -78,11 +81,10 @@ def summarize(policy_name: str, records: pd.DataFrame) -> dict:
         "f1_macro": f1_score(
             records["ground_action"], predictions, average="macro", labels=ACTION_LABELS, zero_division=0
         ),
-        "total_decision_cost": records["decision_cost"].sum(),
-        "total_information_cost": records["info_cost"].sum(),
-        "total_cost": records["decision_cost"].sum() + records["info_cost"].sum(),
-        "expected_cost_per_case": (records["decision_cost"].sum() + records["info_cost"].sum())
-        / len(records),
+        "total_decision_cost": decision_cost,
+        "total_information_cost": info_cost,
+        "total_cost": total_cost,
+        "expected_cost_per_case": total_cost / len(records),
         "human_pct": (predictions == "Escalate").mean() * 100,
     }
 

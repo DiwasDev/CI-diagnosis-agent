@@ -36,21 +36,16 @@ def main():
     metrics = []
     for policy in policies:
         records = evaluate(policy, cases, EVIDENCE_COSTS)
-        metrics.append(summarize(policy.name, records))
-        print_report(policy.name, records)
+        summary = summarize(policy.name, records)
+        metrics.append(summary)
+        print(f"\n=== {policy.name} ===")
+        print(f"accuracy {summary['accuracy']:.1%} | total cost ${summary['total_cost']:,.2f} | "
+              f"escalation {summary['human_pct']:.1f}%")
 
     print("\nPOLICY COMPARISON (500 test cases)")
     print(comparison_table(metrics).to_string(index=False, float_format=lambda x: f"{x:,.3f}"))
     print_rankings(metrics)
     plot_comparison(metrics)
-
-
-def print_report(name, records):
-    print(f"\n=== {name} ===")
-    failures = records[records["prediction"] != records["ground_action"]]
-    print(f"accuracy {1 - len(failures) / len(records):.1%} | "
-          f"total cost ${records['info_cost'].sum() + records['decision_cost'].sum():,.2f} | "
-          f"escalation {(records['prediction'] == 'Escalate').mean():.1%}")
 
 
 def print_rankings(metrics):
