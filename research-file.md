@@ -11,7 +11,6 @@ Build and test a small agent that, given incomplete evidence from a CI run, choo
 - **Flaky test:** fails/passes on unchanged code — the result carries no information about correctness.
 - **POMDP:** decision framework where the true state isn't directly observable, only evidence about it.
 - **Hidden state / belief state:** the unobserved cause; a probability distribution over possible causes.
-- **Factored belief state:** hidden state as several independent-ish variables instead of one exclusive category — needed because causes can co-occur.
 - **Noisy-OR:** compact model for combining multiple non-exclusive causes without a full joint table.
 - **Value of Information (VoI):** expected reduction in loss from gathering more evidence, minus the cost of gathering it.
 - **Threshold policy:** act above a confidence threshold, gather evidence in a middle band, withhold below it — thresholds set by cost ratios, not fixed.
