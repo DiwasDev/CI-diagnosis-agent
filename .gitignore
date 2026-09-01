@@ -15,3 +15,8 @@ week2-probabilistic-view-of-ai-agents (1).pdf
 
 # Virtual Environment
 venv/
+# Generated experiment artifacts
+experiments/reports/
+
+# Python bytecode
+__pycache__/
