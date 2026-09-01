@@ -1,234 +1,93 @@
-# P0 Failures Analysis
+# P0 majority baseline — failure analysis
 
-**Total Failures:** 261 / 500
-**Failure Rate:** 52.2%
+**Total failures:** 5 of 500 cases (1.0% failure rate)
 
-## Top 5 Most Expensive Failures
+## Failure 1 — case 0
 
-1. Case #0: Cost = $75.07
-2. Case #1: Cost = $75.07
-3. Case #3: Cost = $75.07
-4. Case #8: Cost = $75.07
-5. Case #10: Cost = $75.07
+- **True state:** S3_dependency_failures
+- **Predicted action:** Fix Code
+- **Realised cost:** $75.07
+- **Correct action was:** Fix Dependency
 
----
+### Dry-run trace
 
-
-## Failure #1: Case #0
-
-**True Hidden State:** S3_dependency_failures
-**Predicted Action:** Fix Code
-**Cost:** $75.07
-
-### Dry Run Trace
-
-**Step 1: Initialize Priors**
 ```
-P(S4_static_analysis_failures) = 0.4162
-P(S3_dependency_failures) = 0.3122
-P(S5_test_failures) = 0.1164
-P(S2_project_config_issues) = 0.0582
+priors: S4 0.416, S3 0.312, S5 0.116
+E1 = D_static_analysis available but not acquired
+E2 = mixed available but not acquired
+E3 = fail_on_rerun available but not acquired
+E4 = reproducible_locally available but not acquired
+final: Fix Code at expected cost $41.64 (realised $75.07)
 ```
 
-**Step 2: Apply Free Evidence (E1, E2)**
-```
-Observed E1 = D_static_analysis
-Observed E2 = mixed
+## Failure 2 — case 1
 
-After E1, E2:
-  P(S4_static_analysis_failures|E1,E2) = 0.5328
-  P(S3_dependency_failures|E1,E2) = 0.4223
-  P(S2_project_config_issues|E1,E2) = 0.0153
-  P(S6_environment_setup_issues|E1,E2) = 0.0117
-  Best Action: Fix Code, EC = $38.16
-```
+- **True state:** S3_dependency_failures
+- **Predicted action:** Fix Code
+- **Realised cost:** $75.07
+- **Correct action was:** Fix Dependency
 
-**Step 3: Evaluate E3 (Rerun Test, $0.07)**
-```
-```
+### Dry-run trace
 
-**Step 4: Evaluate E4 (Local Repro, $33.33)**
 ```
-Decision: SKIP (cost not justified)
+priors: S4 0.416, S3 0.312, S5 0.116
+E1 = A_install available but not acquired
+E2 = mixed available but not acquired
+E3 = fail_on_rerun available but not acquired
+E4 = not_reproducible_locally available but not acquired
+final: Fix Code at expected cost $41.64 (realised $75.07)
 ```
 
-**Step 5: Final Decision**
-  Action Taken: Fix Code
-  Actual Cost: $75.07
-  ✗ Wrong (should have taken Fix Dependency)
+## Failure 3 — case 3
 
+- **True state:** S3_dependency_failures
+- **Predicted action:** Fix Code
+- **Realised cost:** $75.07
+- **Correct action was:** Fix Dependency
 
-## Failure #2: Case #1
+### Dry-run trace
 
-**True Hidden State:** S3_dependency_failures
-**Predicted Action:** Fix Code
-**Cost:** $75.07
-
-### Dry Run Trace
-
-**Step 1: Initialize Priors**
 ```
-P(S4_static_analysis_failures) = 0.4162
-P(S3_dependency_failures) = 0.3122
-P(S5_test_failures) = 0.1164
-P(S2_project_config_issues) = 0.0582
+priors: S4 0.416, S3 0.312, S5 0.116
+E1 = C_test available but not acquired
+E2 = mixed available but not acquired
+E3 = fail_on_rerun available but not acquired
+E4 = reproducible_locally available but not acquired
+final: Fix Code at expected cost $41.64 (realised $75.07)
 ```
 
-**Step 2: Apply Free Evidence (E1, E2)**
-```
-Observed E1 = A_install
-Observed E2 = mixed
+## Failure 4 — case 8
 
-After E1, E2:
-  P(S3_dependency_failures|E1,E2) = 0.7073
-  P(S2_project_config_issues|E1,E2) = 0.1491
-  P(S4_static_analysis_failures|E1,E2) = 0.0660
-  P(S5_test_failures|E1,E2) = 0.0369
-  Best Action: Fix Dependency, EC = $27.86
-```
+- **True state:** S3_dependency_failures
+- **Predicted action:** Fix Code
+- **Realised cost:** $75.07
+- **Correct action was:** Fix Dependency
 
-**Step 3: Evaluate E3 (Rerun Test, $0.07)**
-```
-```
+### Dry-run trace
 
-**Step 4: Evaluate E4 (Local Repro, $33.33)**
 ```
-Decision: SKIP (cost not justified)
+priors: S4 0.416, S3 0.312, S5 0.116
+E1 = C_test available but not acquired
+E2 = src available but not acquired
+E3 = fail_on_rerun available but not acquired
+E4 = reproducible_locally available but not acquired
+final: Fix Code at expected cost $41.64 (realised $75.07)
 ```
 
-**Step 5: Final Decision**
-  Action Taken: Fix Code
-  Actual Cost: $75.07
-  ✗ Wrong (should have taken Fix Dependency)
+## Failure 5 — case 10
 
+- **True state:** S6_environment_setup_issues
+- **Predicted action:** Fix Code
+- **Realised cost:** $75.07
+- **Correct action was:** Escalate
 
-## Failure #3: Case #3
+### Dry-run trace
 
-**True Hidden State:** S3_dependency_failures
-**Predicted Action:** Fix Code
-**Cost:** $75.07
-
-### Dry Run Trace
-
-**Step 1: Initialize Priors**
 ```
-P(S4_static_analysis_failures) = 0.4162
-P(S3_dependency_failures) = 0.3122
-P(S5_test_failures) = 0.1164
-P(S2_project_config_issues) = 0.0582
+priors: S4 0.416, S3 0.312, S5 0.116
+E1 = C_test available but not acquired
+E2 = mixed available but not acquired
+E3 = fail_on_rerun available but not acquired
+E4 = not_reproducible_locally available but not acquired
+final: Fix Code at expected cost $41.64 (realised $75.07)
 ```
-
-**Step 2: Apply Free Evidence (E1, E2)**
-```
-Observed E1 = C_test
-Observed E2 = mixed
-
-After E1, E2:
-  P(S3_dependency_failures|E1,E2) = 0.5535
-  P(S5_test_failures|E1,E2) = 0.1731
-  P(S6_environment_setup_issues|E1,E2) = 0.0987
-  P(S2_project_config_issues|E1,E2) = 0.0844
-  Best Action: Fix Dependency, EC = $38.13
-```
-
-**Step 3: Evaluate E3 (Rerun Test, $0.07)**
-```
-```
-
-**Step 4: Evaluate E4 (Local Repro, $33.33)**
-```
-Decision: SKIP (cost not justified)
-```
-
-**Step 5: Final Decision**
-  Action Taken: Fix Code
-  Actual Cost: $75.07
-  ✗ Wrong (should have taken Fix Dependency)
-
-
-## Failure #4: Case #8
-
-**True Hidden State:** S3_dependency_failures
-**Predicted Action:** Fix Code
-**Cost:** $75.07
-
-### Dry Run Trace
-
-**Step 1: Initialize Priors**
-```
-P(S4_static_analysis_failures) = 0.4162
-P(S3_dependency_failures) = 0.3122
-P(S5_test_failures) = 0.1164
-P(S2_project_config_issues) = 0.0582
-```
-
-**Step 2: Apply Free Evidence (E1, E2)**
-```
-Observed E1 = C_test
-Observed E2 = src
-
-After E1, E2:
-  P(S3_dependency_failures|E1,E2) = 0.3288
-  P(S4_static_analysis_failures|E1,E2) = 0.2052
-  P(S5_test_failures|E1,E2) = 0.1971
-  P(S6_environment_setup_issues|E1,E2) = 0.1639
-  Best Action: Escalate, EC = $50.00
-```
-
-**Step 3: Evaluate E3 (Rerun Test, $0.07)**
-```
-```
-
-**Step 4: Evaluate E4 (Local Repro, $33.33)**
-```
-Decision: SKIP (cost not justified)
-```
-
-**Step 5: Final Decision**
-  Action Taken: Fix Code
-  Actual Cost: $75.07
-  ✗ Wrong (should have taken Fix Dependency)
-
-
-## Failure #5: Case #10
-
-**True Hidden State:** S6_environment_setup_issues
-**Predicted Action:** Fix Code
-**Cost:** $75.07
-
-### Dry Run Trace
-
-**Step 1: Initialize Priors**
-```
-P(S4_static_analysis_failures) = 0.4162
-P(S3_dependency_failures) = 0.3122
-P(S5_test_failures) = 0.1164
-P(S2_project_config_issues) = 0.0582
-```
-
-**Step 2: Apply Free Evidence (E1, E2)**
-```
-Observed E1 = C_test
-Observed E2 = mixed
-
-After E1, E2:
-  P(S3_dependency_failures|E1,E2) = 0.5535
-  P(S5_test_failures|E1,E2) = 0.1731
-  P(S6_environment_setup_issues|E1,E2) = 0.0987
-  P(S2_project_config_issues|E1,E2) = 0.0844
-  Best Action: Fix Dependency, EC = $38.13
-```
-
-**Step 3: Evaluate E3 (Rerun Test, $0.07)**
-```
-```
-
-**Step 4: Evaluate E4 (Local Repro, $33.33)**
-```
-Decision: SKIP (cost not justified)
-```
-
-**Step 5: Final Decision**
-  Action Taken: Fix Code
-  Actual Cost: $75.07
-  ✗ Wrong (should have taken Escalate)
