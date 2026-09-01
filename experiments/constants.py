@@ -92,6 +92,15 @@ LIKELIHOODS = {
 }
 
 # ============================================================================
+# UNCERTAIN BAND (from probability_decision_record.md, threshold policies)
+# A decision is "uncertain" — and escalates instead of acting — when the two
+# cheapest actions cost nearly the same, or no single state is likely enough.
+# ============================================================================
+
+UNCERTAIN_COST_GAP = 5.0     # $ difference below which two actions count as tied
+UNCERTAIN_CONFIDENCE = 0.55  # minimum posterior max for acting confidently
+
+# ============================================================================
 # ACTIONS
 # ============================================================================
 
@@ -164,24 +173,26 @@ STATE_TO_ACTION = {
 # BAYES UPDATE HELPER
 # ============================================================================
 
-def bayes_update(posterior, evidence_key, outcome):
+def bayes_update(posterior, evidence_key, outcome, likelihoods=None):
     """
     Update posterior given an evidence source and observed outcome.
-    
+
     Args:
         posterior: dict[state] -> P(state | previous evidence)
         evidence_key: "E1", "E2", "E3", or "E4"
         outcome: observed outcome (e.g., "C_test", "src", "fail_on_rerun", etc.)
-    
+        likelihoods: optional override table (what-if experiments); defaults to LIKELIHOODS
+
     Returns:
         Updated posterior dict[state] -> P(state | previous + new evidence)
     """
-    likelihoods = LIKELIHOODS[evidence_key]
-    
+    likelihoods = likelihoods or LIKELIHOODS
+    likelihood_table = likelihoods[evidence_key]
+
     # Numerator: prior (or posterior from previous update) * likelihood
     unnormalised = {}
     for state in STATES:
-        likelihood = likelihoods[state].get(outcome, 0.0)
+        likelihood = likelihood_table[state].get(outcome, 0.0)
         unnormalised[state] = posterior[state] * likelihood
     
     # Normalise
