@@ -1,8 +1,10 @@
-# In-Depth Failure Analysis: CI Failure Diagnosis Agent (Week 2)
+# In-Depth Failure Analysis: CI Failure Diagnosis Agent
 
-This document presents a comprehensive, decision-theoretic failure analysis of the CI Failure Diagnosis Agent, following the guidelines set out in the Week 2 Project Brief (Section 19). 
+This document presents a decision-theoretic failure analysis of the CI Failure Diagnosis Agent. 
 
 We compare the performance of five decision policies on a dataset of 500 simulated CI failures, identify the top 5 failure cases for the best-performing policy (**P4 — Cost-based Value of Information**), answer the 10 diagnostic questions for each failure, classify them, and propose concrete, actionable steps to improve the system.
+
+The cost-derived-threshold policy (**Fix3 — derived threshold**) has its own report in [`fix3_failures.md`](fix3_failures.md).
 
 ---
 
@@ -162,16 +164,6 @@ To address these failure modes, we propose the following actionable steps:
 -> Add more granular hidden states in training data to distinguish between similar failure types.
 
 
-### Action 3: Introduce Log-Parsing Sub-Evidence (Resolve Misleading Evidence)
-
-Instead of treating step failures as black boxes, the agent should perform simple regex log-parsing on the failed CI step. This splits $E1$ into granular sub-evidence categories:
-- If a step fails with `ModuleNotFoundError` or `ImportError` $\rightarrow$ Map to $E1_{\text{import\_error}}$ (strongly points to `S3` dependency issues, not `S4` static lint).
-- If a step fails with `gcc: command not found` or `missing header file` $\rightarrow$ Map to $E1_{\text{compiler\_error}}$ (strongly points to `S6` env setup).
-- If a step fails with `AssertionError` or `test_... failed` $\rightarrow$ Map to $E1_{\text{test\_assertion}}$ (strongly points to `S5` test logic).
-
-*Impact:* This removes the semantic overlap of $E1$, preventing Case #0, #10, #17, #18, and #23.
-
-*Impact:* At $0.10, the VoI of $E4$ becomes positive in all ambiguous cases. The agent will run the local container to verify the failure before taking action, raising accuracy to >90%.
 
 
 

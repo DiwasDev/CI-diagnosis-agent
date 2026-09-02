@@ -90,9 +90,11 @@ ROOT --> S7["S7 · Other\<br/>\<i>Network flakes, OOM, rate limits\</i>"]
 | S7 | **Other** | Ambiguous, non-deterministic, or external failures: transient network flakes, API rate limits, disk space shortages, OOM kills (exit 137), permission issues. |
 
 
-These hidden states were derieved from the ci-bench dataset, It was about , the dataset and mapping was applied to to get the clear label for each failure.Priors are calculated form the mapped dataset.The dataset contains 567 CI failure instances collected from 105 real-world GitHub repositories, all written in Python.
+These hidden states were derived from the ci-repair-bench dataset: the multi-label `error_type` symptom tags were disambiguated to one hidden state each (see `src/reproducability/disambiguate.py`), and the priors below are counted from the resulting `primary_hidden_state` column.
 
 Dataset link: [Dataset](https://huggingface.co/datasets/ci-benchmark-user/ci-repair-bench/viewer)
+
+> **Provenance note (2026-09):** the dataset card describes the data as "567 CI failure instances collected from 105 real-world GitHub repositories, all written in Python". The parquet verified locally contains 567 rows from **145 distinct `repo_owner`/`repo_name` pairs** (91 distinct owners), so the repository count should be quoted as 145 when citing from the data; the card's 105 could not be reproduced from any column. The current remote revision lists 565 rows — the local copy is the complete dataset as downloaded, not a subset.
 
 
 ---
@@ -469,6 +471,8 @@ Seven mutually exclusive, exhaustive outcomes: **src · test · config · ci · 
 | S6 Environment Setup Issues | 0.406 | 0.063 | 0.000 | 0.000 | 0.000 | **0.531** | 0.000 | 32 |
 | S7 Other | 0.000 | **0.625** | 0.000 | 0.000 | 0.000 | 0.375 | 0.000 | 8 |
 
+> **Verification note (2026-09):** the §3 priors and the §6 E1 table regenerate exactly from `data/ci_repair_bench_disambiguated.parquet` (run `python src/reproducability/verify_decision_tables.py`). For E2, the per-file categorization rules were only partially recorded when this table was first derived; the reconstruction in that script agrees on 519 of 567 case classifications (exact for S3 and S7), with the residual differences concentrated in undocumented boundary rules (`test/` vs `tests/` directories, config-file extensions).
+
 **Dominant signal per outcome:**
 
 ```
@@ -739,7 +743,7 @@ P(S1) + P(S2) + P(S4) = 0.0092 + 0.0033 + 0.8494 = 0.8619  >  0.60
 | Action policy | V1: two fixed thresholds + escalation fallback |
 | Conditional independence | Assumed (known limitation, see §10 item 6) |
 | EIG(E3) at prior | 0.1201 bits (ASSUMED table — see §13) |
-| EIG(E4) at prior | 0.1930 bits (ASSUMED table — see §13) |
+| EIG(E4) at prior | 0.2100 bits (ASSUMED table — see §13) |
 
 ---
 
@@ -799,14 +803,16 @@ E3 is the weakest of the four sources at the prior. It becomes more useful \*aft
 
 **Semantic reasoning per state:**
 
+> **Revision (2026-09):** the S4–S6 rows were adjusted from the first-draft values (S4 0.88, S5 0.70, S6 0.12) to the values below before any experiment was run; `experiments/constants.py` and all reported results use these revised numbers. The first draft over-trusted local reproducibility of test failures and under-trusted it for environment issues.
+
 | State | Reasoning | P(reproducible_locally) | P(not_reproducible_locally) |
 |---|---|---|---|
 | S1 Source Code Issues | Same Python interpreter, same source file — syntax and import errors always reproduce locally | **0.92** | **0.08** |
 | S2 Project Config Issues | Same `pyproject.toml` is read locally; minor gap from local build caches that may mask missing metadata | **0.80** | **0.20** |
 | S3 Dependency Failures | Local environments often have cached or pre-resolved packages that CI's clean `pip install` doesn't — the conflict may not surface locally | **0.45** | **0.55** |
-| S4 Static Analysis Failures | Same linter, same code → reproduces if developer has the same tool version (common in projects with pinned pre-commit hooks) | **0.88** | **0.12** |
-| S5 Test Failures | Mostly reproducible; some failures depend on CI-specific environment variables, test ordering seeds, or parallelism that differs locally | **0.70** | **0.30** |
-| S6 Environment Setup Issues | Missing `gcc`, wrong Python runtime, broken image — these are runner-infrastructure-specific and almost never affect a developer's local machine | **0.12** | **0.88** |
+| S4 Static Analysis Failures | Same linter, same code → reproduces if developer has the same tool version (common in projects with pinned pre-commit hooks) | **0.90** | **0.10** |
+| S5 Test Failures | Test outcomes often depend on CI-specific environment variables, test-ordering seeds, runner parallelism, or timeouts that a developer's local run does not exercise | **0.40** | **0.60** |
+| S6 Environment Setup Issues | Missing `gcc`, wrong Python runtime, broken image — mostly runner-infrastructure-specific, though some constraints (resource caps, restricted networks) also exist on developer laptops | **0.25** | **0.75** |
 | S7 Other | Network calls, rate limits, OOM kills — local machines have different network policies and memory limits; rarely reproduced | **0.15** | **0.85** |
 
 **Smoothed likelihood table `P(local_repro | state)`** \*(exact — binary outcomes):\*
@@ -816,26 +822,26 @@ E3 is the weakest of the four sources at the prior. It becomes more useful \*aft
 | S1 Source Code Issues | 0.9200 | 0.0800 |
 | S2 Project Config Issues | 0.8000 | 0.2000 |
 | S3 Dependency Failures | 0.4500 | 0.5500 |
-| S4 Static Analysis Failures | 0.8800 | 0.1200 |
-| S5 Test Failures | 0.7000 | 0.3000 |
-| S6 Environment Setup Issues | 0.1200 | 0.8800 |
+| S4 Static Analysis Failures | 0.9000 | 0.1000 |
+| S5 Test Failures | 0.4000 | 0.6000 |
+| S6 Environment Setup Issues | 0.2500 | 0.7500 |
 | S7 Other | 0.1500 | 0.8500 |
 
 **Dominant signal:**
 
-- `not_reproducible_locally` → strong positive for S6 and S7; mild positive for S3
+- `not_reproducible_locally` → strong positive for S6, S7 and S5; mild positive for S3
 
-- `reproducible_locally` → mild positive for S1/S4; mildly rules out S6/S7
+- `reproducible_locally` → strong positive for S1/S2/S4; mildly rules out S6/S7
 
-**EIG(E4) at prior: `0.1930 bits`**
+**EIG(E4) at prior: `0.2100 bits`**
 
-E4 is the second-weakest source at the prior (after E3) but is the strongest of the two assumed sources. Its key discriminating power is in the S6/S7 pair — the only states with `not_reproducible_locally` probabilities above 0.80.
+E4 outranks every other source at the prior except E1. Its key discriminating power is the S5/S6 group — the states with `not_reproducible_locally` probabilities above 0.60.
 
 ---
 
 ### Query order note
 
-In the greedy EIG agent loop, E1 (0.358 bits) is selected first in **100% of cases** at the prior. E4 (0.193 bits) outranks E2 (0.173 bits) and E3 (0.120 bits) at the prior, so it is selected second when E1 observation leaves beliefs diffuse. The actual second source varies per case depending on how much E1 concentrates the posterior.
+In the greedy EIG agent loop, E1 (0.358 bits) is selected first in **100% of cases** at the prior. E4 (0.210 bits) outranks E2 (0.173 bits) and E3 (0.120 bits) at the prior, so it is selected second when E1 observation leaves beliefs diffuse. The actual second source varies per case depending on how much E1 concentrates the posterior.
 
 ---
 
@@ -849,10 +855,10 @@ In the greedy EIG agent loop, E1 (0.358 bits) is selected first in **100% of cas
 | E4 outcomes | `reproducible_locally`, `not_reproducible_locally` |
 | Smoothing applied | None (binary outcomes — no zero-probability cells possible) |
 | EIG(E3) at prior | 0.1201 bits |
-| EIG(E4) at prior | 0.1930 bits |
-| Test cases generated | 100 (seed 42, sampled from 567-row dataset) |
-| Output file | `data/ci_agent_test_cases_v2.jsonl` |
-| All evidence | Synthetically sampled conditioned on `ground_truth_state` |
+| EIG(E4) at prior | 0.2100 bits (revised E4 table) |
+| Test cases generated | 500 (seed 42, hidden states sampled from §3 priors) |
+| Output file | `data/benchmark_data/benchmark_cases_seed42.jsonl` |
+| All evidence | Synthetically sampled from the §6–13 likelihood tables conditioned on `ground_truth_state` |
 
 
 

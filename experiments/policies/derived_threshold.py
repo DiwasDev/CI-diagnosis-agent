@@ -48,7 +48,7 @@ class DerivedThreshold(Policy):
     """
 
     def __init__(self):
-        self.name = "Fix 3 derived threshold"
+        self.name = "Fix3 derived threshold"
         self.threshold = act_escalate_threshold()
 
     def decide(self, case: dict) -> Decision:

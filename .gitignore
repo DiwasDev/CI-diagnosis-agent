@@ -20,3 +20,7 @@ experiments/reports/
 
 # Python bytecode
 __pycache__/
+
+# Tracked per-seed benchmarks and per-case policy results
+!experiments/results/
+!experiments/results/**

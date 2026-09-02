@@ -65,12 +65,11 @@
     ---
 
 
-### Genaralization
-### Generalization challange, 
+### Generalization challenge
 
-Cost of engineers time dependsn on region and escelation cost of engineers can go high or low if the company is operating in low cost region
+Cost of engineers' time depends on region; escalation cost can go high or low if the company operates in a low-cost region.
 
- The model assumes quick pipeline queries (E1/E2) and 20 min local repro (E4). Since, larger organizations have complex workflows, so local reproductino is extremely hard.
+ The model assumes quick pipeline queries (E1/E2) and 20 min local repro (E4). Since larger organizations have complex workflows, local reproduction is extremely hard.
 
  The model assumed (Assumption 8) that fixing a project config (S2) is as easy as fixing a lint error (S4). In a larger codebase with complex builds, a config change (e.g. pyproject.toml) might require extensive testing across teams, making it more costly/time-consuming than a simple lint fix. 
 
@@ -80,9 +79,7 @@ Cost of engineers time dependsn on region and escelation cost of engineers can g
  2. Which probabilities change (and how)?
  In a small startup, simple code bugs (S1: source code errors) or missing imports may dominate CI failures, whereas in a large enterprise, complex inter-service dependencies (S3), environment issues (S6), or flaky infrastructure (S7) are more likely.For instance, with “multiple layers of validation and compliance checks”, config (S2) and environment (S6) issues rise in probability.
 
- Increased flakiness: Larger teams and more tests multiply flaky-test likelihood. Google and Microsoft report ~1 in 7 CI runs hit a flaky test, costing ~30 min per incident. A 50-developer org sees 5–10 hours/week in flaky test triage. Thus moving into an enterprise likely increases the probability of encountering flaky-test states (S7)
-
- Increased flakiness: Larger teams and more tests multiply flaky-test likelihood. Google and Microsoft report ~1 in 7 CI runs hit a flaky test, costing ~30 min per incident. e. Thus moving into an enterprise likely increases the probability of encountering flaky-test states (S7), since test suites grow faster than they stabilize.
+ Increased flakiness: Larger teams and more tests multiply flaky-test likelihood. Google reports that roughly 1 in 7 of its tests exhibits some level of flakiness (Micco, "Flaky Tests at Google and How We Mitigate Them," Google Testing Blog, 2016), and Microsoft engineers report ~30 min to investigate a typical flaky failure. Thus moving into an enterprise likely increases the probability of encountering flaky-test states (S7), since test suites grow faster than they stabilize.
 
 Hidden-collusion or org factors: In enterprises, probabilities of unexpected states (e.g. insider-related issues or multi-team coordination failures) become nonzero. For example, if multi-team projects share code, mistakes in one team’s process might manifest as CI failures for another. The agent must account for these new hidden-state probabilities.
 
@@ -129,7 +126,7 @@ Greater Emphasis on Structured Review: In a large organization, the policy that 
 
 
 
-9. 20 core questions
+9. Appendix — core concepts in plain words
 
 1. What is a hidden state, and what are yours?
 -> Hidden state is the possible outcome of a particular event.There is one reality,we don't know what's reality, so we model those uncertainity across hidden states.

@@ -1,4 +1,4 @@
-"""Experiment: markdown failure reports for P0-P4.
+"""Experiment: markdown failure reports for P0-P4 and the Fix 3 policy.
 
 For each policy, finds the misclassified cases and documents the five most
 expensive ones with a dry-run trace of the belief updates, writing one file
@@ -9,6 +9,7 @@ from experiments.constants import ACTION_COSTS, PRIORS, bayes_update
 from experiments.evaluation import evaluate, load_cases
 from experiments.policies import (
     BeliefOnly,
+    DerivedThreshold,
     ExpectedCostThreshold,
     InfoGainPerDollar,
     MajorityBaseline,
@@ -28,6 +29,7 @@ def main():
         ExpectedCostThreshold(),
         InfoGainPerDollar(),
         ValueOfInformation(),
+        DerivedThreshold(),
     ]
     for policy in policies:
         records = evaluate(policy, cases)

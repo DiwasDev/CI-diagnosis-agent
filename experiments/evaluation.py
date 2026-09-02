@@ -24,12 +24,12 @@ EVIDENCE_SOURCES = {
 }
 
 
-def load_cases() -> pd.DataFrame:
+def load_cases(path: Path = BENCHMARK_PATH) -> pd.DataFrame:
     """Benchmark cases with ground-truth state/action and cleaned evidence outcomes.
 
     Rows without a ground-truth action are excluded, mirroring the notebook.
     """
-    rows = [json.loads(line) for line in BENCHMARK_PATH.read_text().splitlines() if line.strip()]
+    rows = [json.loads(line) for line in path.read_text().splitlines() if line.strip()]
     cases = pd.DataFrame([_flatten_row(row) for row in rows])
     cases["ground_action"] = cases["ground_truth"].map(STATE_TO_ACTION)
     return cases.dropna(subset=["ground_action"]).reset_index(drop=True)

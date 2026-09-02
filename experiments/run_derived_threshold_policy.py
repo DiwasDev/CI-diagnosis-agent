@@ -1,7 +1,7 @@
 """Experiment (Fix 3): all-evidence policy with a cost-derived act/escalate threshold.
 
 Derives the break-even threshold p* from the cost of being wrong in each
-direction (week-2 lecture, section 15.1), checks it is not knife-edge
+direction, checks it is not knife-edge
 sensitive, then runs the DerivedThreshold policy on the full benchmark and
 compares it against the P2/P3/P4 family.
 """

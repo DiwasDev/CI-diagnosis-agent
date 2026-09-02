@@ -41,7 +41,7 @@
 
 | State | Cost | Status | Reason & Calculation |
 |-------|------|--------|---------------------|
-| S1 | **$8.33** | ASSUMED | **Correct action.** 5-min spot-check × ($100 / 60) = **$8.3**. |
+| S1 | **$8.33** | ASSUMED | **Correct action.** 5-min spot-check × ($100 / 60) = **$8.33**. |
 | S2 | **$8.33** | ASSUMED | **Correct action.** Project config (pyproject.toml, etc.) is within the "Fix Code" action scope per policy. Same automation cost as S1 |
 | S3 | **$75.07** | ASSUMED | Wrong action. Same misdiagnosis chain. Code patch does not resolve dependency failure. |
 | S4 | **$8.33** | ASSUMED | **Correct action.** Static analysis failure is resolved by lint/code patch. Same automation cost as S1. |
@@ -57,7 +57,7 @@
 |:---|:---:|:---:|:---:|:---:|:---:|:---:|:---:|
 | **Escalate** | $50.00 | $50.00 | $50.00 | $50.00 | $50.00 | $50.00 | $50.00 |
 | **Fix Dependency** | $75.07 | $75.07 | **$8.33** | $75.07 | $75.07 | $75.07 | $75.07 |
-| **Fix Code** | **$8.3** | **$8.33** | $75.07 | **$8.33** | $75.07 | $75.07 | $75.07 |
+| **Fix Code** | **$8.33** | **$8.33** | $75.07 | **$8.33** | $75.07 | $75.07 | $75.07 |
 
 
 

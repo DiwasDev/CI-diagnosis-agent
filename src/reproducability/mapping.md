@@ -285,6 +285,13 @@
 
     ### Comparison to literature priors (Zheng et al. 2025, Java projects)
 
+    Source: L. Zheng, S. Li, X. Huang, J. Huang, B. Lin, J. Chen, J. Xuan,
+    "Why Do GitHub Actions Workflows Fail? An Empirical Study," ACM TOSEM, 2025
+    (doi:10.1145/3749371) — 375 failed GHA runs across 260 open-source Java projects.
+    Mapping from the paper's Table 3 categories: Source Code = P1, Project Config = P2,
+    Dependency = P3+P4, Static Analysis = P5+P6, Test Failures = P8, Workflow Config = W2,
+    Environment = W4, Other = remainder.
+
     | Hidden State | Literature prior | Benchmark prior | Delta |
     |---|---|---|---|
     | Source Code Issues | 0.144 | 0.0265 | −0.118 |
