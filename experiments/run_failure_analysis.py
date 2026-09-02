@@ -36,10 +36,11 @@ def main():
 
 def write_failure_report(policy_name, cases, records):
     failures = records[records["prediction"] != records["ground_action"]]
-    failures = failures.sort_values("decision_cost", ascending=False).head(5)
+    total_failures = len(failures)
+    failures = failures.sort_values("decision_cost", ascending=False, kind="stable").head(5)
     lines = [f"# {policy_name} — failure analysis", "",
-             f"**Total failures:** {len(failures.index)} of {len(records)} cases "
-             f"({len(failures) / len(records):.1%} failure rate)", ""]
+             f"**Total failures:** {total_failures} of {len(records)} cases "
+             f"({total_failures / len(records):.1%} failure rate)", ""]
     for position, (_, failure) in enumerate(failures.iterrows(), start=1):
         case = cases.iloc[failure.name].to_dict()
         lines += trace_failure(position, case, failure)

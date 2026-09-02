@@ -1,6 +1,6 @@
 # P4 cost-based VoI — failure analysis
 
-**Total failures:** 5 of 500 cases (1.0% failure rate)
+**Total failures:** 185 of 500 cases (37.0% failure rate)
 
 ## Failure 1 — case 0
 

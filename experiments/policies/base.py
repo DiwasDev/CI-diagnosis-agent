@@ -75,21 +75,21 @@ def act_or_escalate(posterior: dict) -> str:
     return ranked[0]
 
 
-def expected_information_gain(posterior: dict, evidence_key: str) -> float:
-    """Expected reduction in belief entropy from observing `evidence_key`."""
-    likelihoods = LIKELIHOODS[evidence_key]
-    outcomes = sorted({outcome for state in STATES for outcome in likelihoods[state]})
-    conditional_entropy = 0.0
-    for outcome in outcomes:
-        p_outcome = sum(posterior[state] * likelihoods[state].get(outcome, 0.0) for state in STATES)
-        if p_outcome <= 0:
-            continue
-        posterior_after = {
-            state: posterior[state] * likelihoods[state].get(outcome, 0.0) / p_outcome
-            for state in STATES
-        }
-        conditional_entropy += p_outcome * entropy(posterior_after)
-    return entropy(posterior) - conditional_entropy
+    def expected_information_gain(posterior: dict, evidence_key: str) -> float:
+        """Expected reduction in belief entropy from observing `evidence_key`."""
+        likelihoods = LIKELIHOODS[evidence_key]
+        outcomes = sorted({outcome for state in STATES for outcome in likelihoods[state]})
+        conditional_entropy = 0.0
+        for outcome in outcomes:
+            p_outcome = sum(posterior[state] * likelihoods[state].get(outcome, 0.0) for state in STATES)
+            if p_outcome <= 0:
+                continue
+            posterior_after = {
+                state: posterior[state] * likelihoods[state].get(outcome, 0.0) / p_outcome
+                for state in STATES
+            }
+            conditional_entropy += p_outcome * entropy(posterior_after)
+        return entropy(posterior) - conditional_entropy
 
 
 def entropy(distribution: dict) -> float:

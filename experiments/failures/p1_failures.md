@@ -1,6 +1,6 @@
 # P1 belief-only — failure analysis
 
-**Total failures:** 5 of 500 cases (1.0% failure rate)
+**Total failures:** 192 of 500 cases (38.4% failure rate)
 
 ## Failure 1 — case 0
 

@@ -1,6 +1,6 @@
 # P3 info-gain per dollar — failure analysis
 
-**Total failures:** 5 of 500 cases (1.0% failure rate)
+**Total failures:** 198 of 500 cases (39.6% failure rate)
 
 ## Failure 1 — case 0
 
@@ -38,7 +38,7 @@ E4 = not_reproducible_locally available but not acquired
 final: Fix Dependency at expected cost $35.39 (realised $75.07)
 ```
 
-## Failure 3 — case 18
+## Failure 3 — case 17
 
 - **True state:** S3_dependency_failures
 - **Predicted action:** Fix Code
@@ -56,7 +56,7 @@ E4 = not_reproducible_locally available but not acquired
 final: Fix Code at expected cost $35.70 (realised $75.07)
 ```
 
-## Failure 4 — case 17
+## Failure 4 — case 18
 
 - **True state:** S3_dependency_failures
 - **Predicted action:** Fix Code
@@ -74,20 +74,20 @@ E4 = not_reproducible_locally available but not acquired
 final: Fix Code at expected cost $35.70 (realised $75.07)
 ```
 
-## Failure 5 — case 29
+## Failure 5 — case 23
 
-- **True state:** S2_project_config_issues
-- **Predicted action:** Fix Dependency
+- **True state:** S5_test_failures
+- **Predicted action:** Fix Code
 - **Realised cost:** $75.07
-- **Correct action was:** Fix Code
+- **Correct action was:** Escalate
 
 ### Dry-run trace
 
 ```
 priors: S4 0.416, S3 0.312, S5 0.116
-E1 = C_test (acquired) -> S3 0.417, S5 0.229, S6 0.116
-E2 = mixed (acquired) -> S3 0.553, S5 0.173, S6 0.099
-E3 = fail_on_rerun (acquired) -> S3 0.595, S5 0.142, S2 0.101
-E4 = reproducible_locally available but not acquired
-final: Fix Dependency at expected cost $35.39 (realised $75.07)
+E1 = E_workflow (acquired) -> S4 0.314, S5 0.197, S3 0.156
+E2 = src (acquired) -> S4 0.514, S5 0.133, S6 0.100
+E3 = fail_on_rerun (acquired) -> S4 0.579, S1 0.107, S5 0.101
+E4 = not_reproducible_locally available but not acquired
+final: Fix Code at expected cost $25.40 (realised $75.07)
 ```

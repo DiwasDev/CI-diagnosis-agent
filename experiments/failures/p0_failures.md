@@ -1,6 +1,6 @@
 # P0 majority baseline — failure analysis
 
-**Total failures:** 5 of 500 cases (1.0% failure rate)
+**Total failures:** 261 of 500 cases (52.2% failure rate)
 
 ## Failure 1 — case 0
 

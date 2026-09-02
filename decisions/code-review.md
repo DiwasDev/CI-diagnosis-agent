@@ -10,7 +10,11 @@ simpler alternative implementations.
 1. **Can this be simpler?** Two things found and simplified during review:
    `run_policy_comparison.py` recomputed accuracy/cost/escalation from records
    that `summarize()` had already produced — it now prints straight from the
-   summary; `summarize()` computed total cost twice.
+   summary; `summarize()` computed total cost twice. A third review pass (after
+   a question about P3) caught `run_failure_analysis.py` counting failures
+   *after* taking the top five, so every report claimed "5 failures"; it also
+   revealed that the notebook's own stored P3/P4 cell outputs predate the E3
+   mapping fix — see the mismatch section below.
 2. **Can this be smaller?** The notebook's per-policy metric printouts
    (classification report + confusion matrix per policy, ~80 lines each) were
    collapsed into one comparison table plus a chart; the numbers a human acts
@@ -125,8 +129,23 @@ not need. If state or outcome spaces grow by an order of magnitude, revisit C.
 
 ## Things re-verified against the notebook's outputs
 
-- P0–P4 headline numbers reproduce exactly (P4: 63.0% accuracy, $17,504.49
-  total, 17.2% escalation).
+- **The notebook disagrees with itself.** Its stored cell outputs for P3
+  (51.0%, $0.00 info cost — byte-identical to P2) and P4 (61.0%, $17,918.17)
+  were last executed with the E3 key bug, so E3 never updated any belief and
+  P3 degenerated to P2. The narrative summary (P3 60.4%, P4 63.0%, $17,504.49)
+  matches the *corrected* E3-active run from the Fix 2 section, row (a).
+- **The converted scripts reproduce the corrected (E3-active) numbers**: P3
+  60.4% / $17,966.37 / 33.4% escalation, P4 63.0% / $17,504.49 / 17.2%. The
+  committed `experiments/failures/*.md` from the notebook era are E3-broken
+  artifacts (P4 reports 195 failures = 61.0% accuracy); the regenerated
+  reports reflect E3-active policies (P4: 185 failures = 63.0% accuracy).
+- **The P3 rewrite is per-case identical**: the notebook's verbatim cell-11
+  implementation and the converted `InfoGainPerDollar` produce the same action
+  and the same evidence set on all 500 cases. The notebook's two-clause stop
+  `if action != 'Escalate' and max(posterior.values()) >= 0.55` collapses to
+  `act_or_escalate(posterior) != "Escalate"` because
+  `choose_expected_cost_action` already returns `Escalate` whenever the max
+  posterior is below 0.55 — the second clause is redundant.
 - Fix 1's E4 = $0.10 what-if reproduces the direction and magnitude of the
   notebook's Fix-part results (accuracy up, E4 now purchased).
 - Fix 2's baseline row "(a) E3 mapped, original likelihood" reproduces the
