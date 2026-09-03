@@ -79,12 +79,16 @@ Cost of engineers' time depends on region; escalation cost can go high or low if
  2. Which probabilities change (and how)?
  In a small startup, simple code bugs (S1: source code errors) or missing imports may dominate CI failures, whereas in a large enterprise, complex inter-service dependencies (S3), environment issues (S6), or flaky infrastructure (S7) are more likely.For instance, with “multiple layers of validation and compliance checks”, config (S2) and environment (S6) issues rise in probability.
 
- Increased flakiness: Larger teams and more tests multiply flaky-test likelihood. Google reports that roughly 1 in 7 of its tests exhibits some level of flakiness (Micco, "Flaky Tests at Google and How We Mitigate Them," Google Testing Blog, 2016), and Microsoft engineers report ~30 min to investigate a typical flaky failure. Thus moving into an enterprise likely increases the probability of encountering flaky-test states (S7), since test suites grow faster than they stabilize.
+ Increased flakiness: Larger teams and more tests multiply flaky-test likelihood. Google reports that roughly 1 in 7 of its tests exhibits some level of flakiness (Micco, "Flaky Tests at Google and How We Mitigate Them," Google Testing Blog, 2016). Thus moving into an enterprise likely increases the probability of encountering flaky-test states (S7), since test suites grow faster than they stabilize.
 
 Hidden-collusion or org factors: In enterprises, probabilities of unexpected states (e.g. insider-related issues or multi-team coordination failures) become nonzero. For example, if multi-team projects share code, mistakes in one team’s process might manifest as CI failures for another. The agent must account for these new hidden-state probabilities.
 
 3. Which costs change?
-Labor rates: The biggest changes are human-cost assumptions. As noted, moving into, say, a German enterprise or Silicon Valley would raise the per-hour cost significantly above $100/hr (to ~$150/hr or more). Conversely, moving to a lower-cost locale could cut the $100 assumption in half. All human-time costs (escalation, patch review, re-diagnosis) scale accordingly.
+Labor rates: The biggest changes are human-cost assumptions. As noted, moving into, say, a German enterprise or Silicon Valley may raise the per-hour cost significantly above $100/hr (to ~$150/hr or more). Conversely, moving to a lower-cost locale could cut the $100 assumption in half. All human-time costs (escalation, patch review, re-diagnosis) scale accordingly.
+
+Labor rates are the biggest driver of human‑cost assumptions. We consider two scenarios: a “standard” enterprise at $100/hr and a “high‑cost” enterprise (e.g., senior engineers in Silicon Valley or similar markets) at ~$150/hr. The latter is intended as a plausible high‑end case rather than a precise average; moving to lower‑cost locales can reduce this assumption substantially, potentially by half or more depending on role and location. All human‑time costs (escalation, patch review, re‑diagnosis) scale with the chosen scenario.
+
+
 
 Escalation costs per state: The model’s flat $50 escalate cost assumes each triage is ~30 min. In a bigger org, triage often involves more people and bureaucracy (meetings, coordination), so some failure modes (especially ones involving multiple teams or departments) might take significantly longer than 30 min. For example, a multi-service outage might need 2+ hours of a senior engineer’s time, making escalation cost ~$200. 
 
