@@ -1,0 +1,13 @@
+\begin{thebibliography}{}
+
+\bibitem[\protect\citeauthoryear{Micco}{2016}]{micco2016flaky}
+John Micco.
+\newblock Flaky tests at {Google} and how we mitigate them.
+\newblock Google Testing Blog, 2016.
+
+\bibitem[\protect\citeauthoryear{Zheng \bgroup \em et al.\egroup }{2025}]{zheng2025gha}
+Lianyu Zheng, Shuang Li, Xi~Huang, Jiangnan Huang, Bin Lin, Jinfu Chen, and Jifeng Xuan.
+\newblock Why do {GitHub Actions} workflows fail? {An} empirical study.
+\newblock {\em ACM Transactions on Software Engineering and Methodology}, 1(1), 2025.
+
+\end{thebibliography}

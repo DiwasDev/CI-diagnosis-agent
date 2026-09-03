@@ -10,7 +10,7 @@ The cost-derived-threshold policy (**Fix3 — derived threshold**) has its own r
 
 ## 1. Overall Policy Performance & Failure Statistics
 
-The table below summarizes the performance of each policy across 500 test cases. All decision costs, information costs, and penalties are based on the cost model defined in [`decisions/costs.md`](file:///home/divas/ml/CI-diagnosis-agent/decisions/costs.md).
+The table below summarizes the performance of each policy across 500 test cases. All decision costs, information costs, and penalties are based on the cost model defined in [`decisions/costs.md`](../../decisions/costs.md).
 
 | Policy | Accuracy | Failures | Failure Rate | Info Cost | Decision Cost | Total Cost | Cost / Case | Escalation Rate |
 | :--- | :---: | :---: | :---: | :---: | :---: | :---: | :---: | :---: |
@@ -162,9 +162,4 @@ To address these failure modes, we propose the following actionable steps:
 
 ### Action 2
 -> Add more granular hidden states in training data to distinguish between similar failure types.
-
-
-
-
-
 ---

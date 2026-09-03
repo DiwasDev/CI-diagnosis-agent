@@ -1,0 +1,102 @@
+\relax 
+\providecommand\hyper@newdestlabel[2]{}
+\providecommand\HyField@AuxAddToFields[1]{}
+\providecommand\HyField@AuxAddToCoFields[2]{}
+\citation{zheng2025gha}
+\citation{micco2016flaky}
+\@writefile{toc}{\contentsline {section}{\numberline {1}Introduction}{1}{section.1}\protected@file@percent }
+\@writefile{toc}{\contentsline {section}{\numberline {2}Related Work}{1}{section.2}\protected@file@percent }
+\citation{zheng2025gha}
+\@writefile{lot}{\contentsline {table}{\numberline {1}{\ignorespaces Hidden root-cause states and empirical priors, counted from 567 disambiguated CI repair cases.}}{2}{table.caption.1}\protected@file@percent }
+\providecommand*\caption@xref[2]{\@setref\relax\@undefined{#1}}
+\newlabel{tab:priors}{{1}{2}{Hidden root-cause states and empirical priors, counted from 567 disambiguated CI repair cases}{table.caption.1}{}}
+\@writefile{toc}{\contentsline {section}{\numberline {3}Probabilistic View of the Agent}{2}{section.3}\protected@file@percent }
+\newlabel{sec:probabilistic}{{3}{2}{Probabilistic View of the Agent}{section.3}{}}
+\@writefile{toc}{\contentsline {subsection}{\numberline {3.1}Hidden States and Priors}{2}{subsection.3.1}\protected@file@percent }
+\@writefile{lot}{\contentsline {table}{\numberline {2}{\ignorespaces Assumed likelihoods for the two paid evidence sources. E3: probability the run passes/fails on rerun. E4: probability the failure does/does not reproduce locally. These are reasoned priors on behaviour, not measured frequencies.}}{2}{table.caption.2}\protected@file@percent }
+\newlabel{tab:e34}{{2}{2}{Assumed likelihoods for the two paid evidence sources. E3: probability the run passes/fails on rerun. E4: probability the failure does/does not reproduce locally. These are reasoned priors on behaviour, not measured frequencies}{table.caption.2}{}}
+\@writefile{toc}{\contentsline {subsection}{\numberline {3.2}Evidence Sources}{2}{subsection.3.2}\protected@file@percent }
+\@writefile{toc}{\contentsline {subsection}{\numberline {3.3}A Worked Belief Update}{2}{subsection.3.3}\protected@file@percent }
+\@writefile{toc}{\contentsline {paragraph}{Step 0.}{2}{section*.3}\protected@file@percent }
+\@writefile{toc}{\contentsline {paragraph}{Step 1 --- observe E1 = D (the static-analysis step failed first).}{2}{section*.4}\protected@file@percent }
+\@writefile{toc}{\contentsline {paragraph}{Step 2 --- observe E2 = \texttt  {src} (only source files changed).}{3}{section*.5}\protected@file@percent }
+\@writefile{toc}{\contentsline {paragraph}{Decision.}{3}{section*.6}\protected@file@percent }
+\@writefile{toc}{\contentsline {subsection}{\numberline {3.4}Where the Threshold Comes From}{3}{subsection.3.4}\protected@file@percent }
+\newlabel{sec:threshold}{{3.4}{3}{Where the Threshold Comes From}{subsection.3.4}{}}
+\@writefile{toc}{\contentsline {paragraph}{The same arithmetic in miniature.}{3}{section*.7}\protected@file@percent }
+\@writefile{toc}{\contentsline {paragraph}{The agent's cost model}{3}{section*.8}\protected@file@percent }
+\@writefile{toc}{\contentsline {section}{\numberline {4}Information-Theoretic View}{3}{section.4}\protected@file@percent }
+\newlabel{sec:info}{{4}{3}{Information-Theoretic View}{section.4}{}}
+\@writefile{toc}{\contentsline {paragraph}{Entropy.}{3}{section*.9}\protected@file@percent }
+\@writefile{toc}{\contentsline {paragraph}{Information gain and conditional entropy.}{3}{section*.10}\protected@file@percent }
+\@writefile{toc}{\contentsline {paragraph}{KL divergence.}{3}{section*.11}\protected@file@percent }
+\@writefile{toc}{\contentsline {paragraph}{Jensen--Shannon divergence.}{3}{section*.12}\protected@file@percent }
+\@writefile{toc}{\contentsline {paragraph}{Calibration.}{3}{section*.13}\protected@file@percent }
+\@writefile{toc}{\contentsline {paragraph}{Expected cost and value of information.}{3}{section*.14}\protected@file@percent }
+\newlabel{eq:voi}{{2}{3}{Expected cost and value of information}{equation.2}{}}
+\@writefile{toc}{\contentsline {section}{\numberline {5}Information Selection}{4}{section.5}\protected@file@percent }
+\newlabel{sec:selection}{{5}{4}{Information Selection}{section.5}{}}
+\@writefile{toc}{\contentsline {section}{\numberline {6}Decision Policy}{4}{section.6}\protected@file@percent }
+\newlabel{sec:policy}{{6}{4}{Decision Policy}{section.6}{}}
+\@writefile{toc}{\contentsline {paragraph}{Action set.}{4}{section*.17}\protected@file@percent }
+\@writefile{toc}{\contentsline {paragraph}{Acting.}{4}{section*.18}\protected@file@percent }
+\@writefile{toc}{\contentsline {paragraph}{Escalation within the band.}{4}{section*.19}\protected@file@percent }
+\@writefile{toc}{\contentsline {paragraph}{Stop rule.}{4}{section*.20}\protected@file@percent }
+\@writefile{toc}{\contentsline {section}{\numberline {7}Experiment}{4}{section.7}\protected@file@percent }
+\@writefile{toc}{\contentsline {paragraph}{Setup.}{4}{section*.21}\protected@file@percent }
+\@writefile{toc}{\contentsline {paragraph}{Policies.}{4}{section*.22}\protected@file@percent }
+\@writefile{toc}{\contentsline {paragraph}{Metrics.}{4}{section*.23}\protected@file@percent }
+\@writefile{toc}{\contentsline {paragraph}{Honest circularity note.}{4}{section*.24}\protected@file@percent }
+\@writefile{toc}{\contentsline {section}{\numberline {8}Results}{4}{section.8}\protected@file@percent }
+\newlabel{sec:results}{{8}{4}{Results}{section.8}{}}
+\@writefile{lot}{\contentsline {table}{\numberline {3}{\ignorespaces Five candidate questions from the design stage. Info value is expected information gain at the prior; ``measured'' tables are cross-tabulated from the 567 cases, ``assumed'' tables are reasoned priors (Table~\ref {tab:e34}). Q5 was never implemented --- it needs log text the benchmark does not carry --- so its information value is unmeasured, not zero.}}{5}{table.caption.15}\protected@file@percent }
+\newlabel{tab:candidates}{{3}{5}{Five candidate questions from the design stage. Info value is expected information gain at the prior; ``measured'' tables are cross-tabulated from the 567 cases, ``assumed'' tables are reasoned priors (Table~\ref {tab:e34}). Q5 was never implemented --- it needs log text the benchmark does not carry --- so its information value is unmeasured, not zero}{table.caption.15}{}}
+\@writefile{lot}{\contentsline {table}{\numberline {4}{\ignorespaces Evidence comparison at the prior. E1 and E2 are free, so their bits-per-dollar is unbounded; the paid sources are ranked by information per dollar, which inverts their information-only ranking.}}{5}{table.caption.16}\protected@file@percent }
+\newlabel{tab:evidence}{{4}{5}{Evidence comparison at the prior. E1 and E2 are free, so their bits-per-dollar is unbounded; the paid sources are ranked by information per dollar, which inverts their information-only ranking}{table.caption.16}{}}
+\@writefile{lot}{\contentsline {table}{\numberline {5}{\ignorespaces Policy comparison on 500 simulated cases (seed 42). Cost per case includes information cost; ``checks'' is the average number of paid questions asked per case. No policy ever buys E4 at \$33.33 --- its VoI is never positive.}}{5}{table.caption.25}\protected@file@percent }
+\newlabel{tab:results}{{5}{5}{Policy comparison on 500 simulated cases (seed 42). Cost per case includes information cost; ``checks'' is the average number of paid questions asked per case. No policy ever buys E4 at \$33.33 --- its VoI is never positive}{table.caption.25}{}}
+\@writefile{toc}{\contentsline {subsection}{\numberline {8.1}Robustness Across Benchmark Draws}{5}{subsection.8.1}\protected@file@percent }
+\@writefile{toc}{\contentsline {subsection}{\numberline {8.2}Three Design Changes, Re-tested}{5}{subsection.8.2}\protected@file@percent }
+\@writefile{lot}{\contentsline {table}{\numberline {6}{\ignorespaces Mean $\pm $ population standard deviation across three independently sampled 500-case benchmarks (seeds 42, 7, 123); the spread reflects sampling noise between draws, not a confidence interval. The ranking is stable; P4 is the most accurate policy on every seed.}}{5}{table.caption.27}\protected@file@percent }
+\newlabel{tab:seeds}{{6}{5}{Mean $\pm $ population standard deviation across three independently sampled 500-case benchmarks (seeds 42, 7, 123); the spread reflects sampling noise between draws, not a confidence interval. The ranking is stable; P4 is the most accurate policy on every seed}{table.caption.27}{}}
+\@writefile{lot}{\contentsline {table}{\numberline {7}{\ignorespaces Re-tests of the three design changes on the same 500 cases. Fix 2 is a negative result: more trusting rerun beliefs made the policy worse.}}{5}{table.caption.28}\protected@file@percent }
+\newlabel{tab:whatif}{{7}{5}{Re-tests of the three design changes on the same 500 cases. Fix 2 is a negative result: more trusting rerun beliefs made the policy worse}{table.caption.28}{}}
+\@writefile{lof}{\contentsline {figure}{\numberline {1}{\ignorespaces Policy comparison on the seed-42 benchmark: accuracy, total cost over 500 cases, expected cost per case, and escalation rate. The VoI policy (P4, green) dominates on both accuracy and cost.}}{6}{figure.caption.26}\protected@file@percent }
+\newlabel{fig:comparison}{{1}{6}{Policy comparison on the seed-42 benchmark: accuracy, total cost over 500 cases, expected cost per case, and escalation rate. The VoI policy (P4, green) dominates on both accuracy and cost}{figure.caption.26}{}}
+\@writefile{toc}{\contentsline {section}{\numberline {9}Failure Analysis}{6}{section.9}\protected@file@percent }
+\newlabel{sec:failures}{{9}{6}{Failure Analysis}{section.9}{}}
+\citation{micco2016flaky}
+\@writefile{toc}{\contentsline {paragraph}{What changed.}{7}{section*.29}\protected@file@percent }
+\@writefile{toc}{\contentsline {section}{\numberline {10}Human Discussions}{7}{section.10}\protected@file@percent }
+\newlabel{sec:discussions}{{10}{7}{Human Discussions}{section.10}{}}
+\@writefile{toc}{\contentsline {section}{\numberline {11}Generalization Challenge}{7}{section.11}\protected@file@percent }
+\newlabel{sec:generalization}{{11}{7}{Generalization Challenge}{section.11}{}}
+\@writefile{toc}{\contentsline {paragraph}{One variable at a time.}{7}{section*.30}\protected@file@percent }
+\@writefile{toc}{\contentsline {paragraph}{Change the environment.}{7}{section*.31}\protected@file@percent }
+\@writefile{toc}{\contentsline {section}{\numberline {12}Limitations}{7}{section.12}\protected@file@percent }
+\newlabel{sec:limitations}{{12}{7}{Limitations}{section.12}{}}
+\@writefile{toc}{\contentsline {paragraph}{The evaluation is circular by construction.}{7}{section*.32}\protected@file@percent }
+\@writefile{toc}{\contentsline {paragraph}{Two of four likelihood tables are assumptions.}{7}{section*.33}\protected@file@percent }
+\bibstyle{named}
+\bibdata{references}
+\bibcite{micco2016flaky}{\citeauthoryear {Micco}{2016}}
+\bibcite{zheng2025gha}{\citeauthoryear {Zheng \bgroup \em  et al.\egroup }{2025}}
+\@writefile{toc}{\contentsline {paragraph}{All costs are assumed.}{8}{section*.34}\protected@file@percent }
+\@writefile{toc}{\contentsline {paragraph}{The state list is both too coarse and too rigid.}{8}{section*.35}\protected@file@percent }
+\@writefile{toc}{\contentsline {paragraph}{Transfer and deployment.}{8}{section*.36}\protected@file@percent }
+\@writefile{toc}{\contentsline {section}{\numberline {13}New Questions}{8}{section.13}\protected@file@percent }
+\newlabel{sec:newquestions}{{13}{8}{New Questions}{section.13}{}}
+\@writefile{toc}{\contentsline {section}{\numberline {A}Core Concepts in Plain Words}{8}{appendix.A}\protected@file@percent }
+\newlabel{app:concepts}{{A}{8}{Core Concepts in Plain Words}{appendix.A}{}}
+\citation{zheng2025gha}
+\@writefile{toc}{\contentsline {section}{\numberline {B}Empirical Likelihood Tables}{9}{appendix.B}\protected@file@percent }
+\newlabel{app:likelihoods}{{B}{9}{Empirical Likelihood Tables}{appendix.B}{}}
+\@writefile{lot}{\contentsline {table}{\numberline {8}{\ignorespaces E1 --- first failed pipeline step. Outcomes: A install, B build, C test, D static analysis, E workflow/env, F other. The dominant entry per row is bold; C is dominant for five of seven states, which makes it a weak discriminator.}}{9}{table.caption.39}\protected@file@percent }
+\newlabel{tab:e1}{{8}{9}{E1 --- first failed pipeline step. Outcomes: A install, B build, C test, D static analysis, E workflow/env, F other. The dominant entry per row is bold; C is dominant for five of seven states, which makes it a weak discriminator}{table.caption.39}{}}
+\@writefile{toc}{\contentsline {section}{\numberline {C}State List Provenance: Mapping from Zheng et al.'s Taxonomy}{9}{appendix.C}\protected@file@percent }
+\newlabel{app:mapping}{{C}{9}{State List Provenance: Mapping from Zheng et al.'s Taxonomy}{appendix.C}{}}
+\@writefile{lot}{\contentsline {table}{\numberline {9}{\ignorespaces E2 --- changed files in the fix commit. The \texttt  {mixed} outcome dominates for S2 and S3 (dependency fixes typically touch a lockfile and source files at once), which limits E2's power for exactly the states that most often co-occur with S4.}}{10}{table.caption.40}\protected@file@percent }
+\newlabel{tab:e2}{{9}{10}{E2 --- changed files in the fix commit. The \texttt {mixed} outcome dominates for S2 and S3 (dependency fixes typically touch a lockfile and source files at once), which limits E2's power for exactly the states that most often co-occur with S4}{table.caption.40}{}}
+\@writefile{lot}{\contentsline {table}{\numberline {10}{\ignorespaces Mapping from the 16 failure types of Zheng et al.\ (their Figures 3--4; counts are their manually analysed Java-project failures, totalling 375) to this paper's hidden states. States merge types that share a repair action: S3~$=$~P3$+$P4 (both fixed by updating pins or regenerating lockfiles), S4~$=$~P5$+$P6 (both are static-tool rejections fixed in code), and S7 is the residual for causes with no shared automated fix. An earlier 8-state variant kept W2 as its own state; it contained zero cases in the Python dataset (every configuration error there was project-level, not workflow-YAML authoring) and was folded into S7. The priors of Table~\ref {tab:priors} are counted from the 567-case Python dataset after its error-type tags are mapped through the same state list --- not from these Java frequencies, which differ substantially (e.g., test failures are 32\% in Java but 11.6\% here).}}{10}{table.caption.41}\protected@file@percent }
+\newlabel{tab:mapping}{{10}{10}{Mapping from the 16 failure types of Zheng et al.\ (their Figures 3--4; counts are their manually analysed Java-project failures, totalling 375) to this paper's hidden states. States merge types that share a repair action: S3~$=$~P3$+$P4 (both fixed by updating pins or regenerating lockfiles), S4~$=$~P5$+$P6 (both are static-tool rejections fixed in code), and S7 is the residual for causes with no shared automated fix. An earlier 8-state variant kept W2 as its own state; it contained zero cases in the Python dataset (every configuration error there was project-level, not workflow-YAML authoring) and was folded into S7. The priors of Table~\ref {tab:priors} are counted from the 567-case Python dataset after its error-type tags are mapped through the same state list --- not from these Java frequencies, which differ substantially (e.g., test failures are 32\% in Java but 11.6\% here)}{table.caption.41}{}}
+\gdef \@abspage@last{10}
