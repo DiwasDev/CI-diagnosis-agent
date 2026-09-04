@@ -51,6 +51,7 @@ No evidence, no belief: always predict the most common action, computed from the
 Pure Bayesian reasoning with no cost sensitivity: update on the free evidence, pick the most likely state, do whatever that state's action map says.
 
 ![P1 — belief-only: update on free evidence, take the most likely state, do its mapped action](docs/diagrams/p1-belief-only.svg)
+Note: this policy uses an arbitrary threshold; the next fix derives it from costs.
 
 ### P2 — expected-cost threshold
 
