@@ -158,14 +158,6 @@ Highest accuracy and the least human escalation — but a higher total cost, bec
 └── src/                             # data generation / reproducibility utilities
 ```
 
-## Design patterns
-
-Following [refactoring.guru](https://refactoring.guru/design-patterns), applied only where there was concrete need:
-
-- **Strategy** — every policy implements the `Policy` interface (`decide(case) → Decision`), so the harness evaluates any decision rule without knowing how it works. Adding a policy = adding one small module.
-- **Template Method** (light) — `evaluation.evaluate()` is the fixed part of the experiment (load case → decide → record realised costs) while `policy.decide()` is the varying step; metric scoring in `summarize()` is shared by all policies.
-- **Dependency injection** — what-if experiments pass alternative evidence costs / likelihoods into `ValueOfInformation(evidence_costs=…, likelihoods=…)` instead of mutating module-level constants, so experiments can't contaminate each other.
-
 ## Setup
 
 ```bash
