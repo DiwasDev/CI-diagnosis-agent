@@ -36,24 +36,7 @@ Reproduce with `python -m experiments.run_seed_variance`; full table incl. escal
 
 One Bayesian core is shared by every policy. Beliefs start at the priors, free evidence (E1 pipeline step, E2 changed files) always updates them, and the *policy* decides whether paid evidence is worth buying and when to commit to an action.
 
-```mermaid
-flowchart TB
-    PR["Priors P(S1…S7)"] --> UP
-    E1["E1 pipeline step · $0"] --> UP["Bayes update"]
-    E2["E2 changed files · $0"] --> UP
-    UP --> PB["Posterior belief"]
-    PB --> POL{"Policy decision rule"}
-    E3["E3 rerun · $0.07"] -.-> POL
-    E4["E4 local repro · $33.33"] -.-> POL
-    E3 -.-> UP
-    E4 -.-> UP
-    POL --> ACT["Action:<br/>Fix Code · Fix Dependency · Escalate"]
-
-    classDef accent fill:#FFF0E8,stroke:#E8590C,color:#1A1A1A;
-    classDef ink fill:#F8F9FA,stroke:#ADB5BD,color:#1A1A1A;
-    class E3,E4 accent;
-    class PR,E1,E2,UP,PB,POL,ACT ink;
-```
+![Shared Bayesian core — free evidence always updates beliefs; paid evidence is bought only if the policy justifies it](docs/diagrams/agent-core.svg)
 
 The cost model is assumed, not measured (full derivation in [`decisions/costs.md`](decisions/costs.md)): a wrong repair costs **$75.07** (vs **$8.33** for the right one) and escalating to a human costs a flat **$50.00** — those numbers are what make "gather more evidence?" an economic question, not a guess.
 
@@ -67,49 +50,19 @@ No evidence, no belief: always predict the most common action, computed from the
 
 Pure Bayesian reasoning with no cost sensitivity: update on the free evidence, pick the most likely state, do whatever that state's action map says.
 
-```mermaid
-flowchart TB
-    A["Free evidence E1, E2"] --> B["Bayes update → posterior"]
-    B --> C["argmax state"]
-    C --> D["state-to-action map"]
-
-    classDef ink fill:#F8F9FA,stroke:#ADB5BD,color:#1A1A1A;
-    class A,B,C,D ink;
-```
+![P1 — belief-only: update on free evidence, take the most likely state, do its mapped action](docs/diagrams/p1-belief-only.svg)
 
 ### P2 — expected-cost threshold
 
 Still free evidence only, but the action now minimises expected cost, and a guard diverts close calls to a human: escalate when the two cheapest actions are within **$5.00** of each other or no state reaches **55%** belief.
 
-```mermaid
-flowchart TB
-    A["Posterior after E1, E2"] --> B["Expected cost of each action"]
-    B --> C{"Cost gap < $5<br/>or max belief < 55%?"}
-    C -->|Yes| E["Escalate"]
-    C -->|No| D["Act on cheapest action"]
-
-    classDef accent fill:#FFF0E8,stroke:#E8590C,color:#1A1A1A;
-    classDef ink fill:#F8F9FA,stroke:#ADB5BD,color:#1A1A1A;
-    class C accent;
-    class A,B,D,E ink;
-```
+![P2 — expected-cost threshold: escalate when the two cheapest actions are within $5 or no state reaches 55% belief](docs/diagrams/p2-band.svg)
 
 ### P3 — information gain per dollar
 
 Buys paid evidence by a *heuristic*: rank remaining checks by expected information gain ÷ cost, buy while the score beats 0.05, stop once the decision leaves the uncertain band. The loop below is shared with Fix 3.
 
-```mermaid
-flowchart TB
-    A["Posterior"] --> B["Rank pending evidence<br/>by IG / cost"]
-    B --> C{"Best score > 0.05?"}
-    C -->|Yes| D["Buy · observe · Bayes update"] --> A
-    C -->|No| E["Act (or escalate)"]
-
-    classDef accent fill:#FFF0E8,stroke:#E8590C,color:#1A1A1A;
-    classDef ink fill:#F8F9FA,stroke:#ADB5BD,color:#1A1A1A;
-    class C accent;
-    class A,B,D,E ink;
-```
+![P3 — buy evidence ranked by information gain per dollar while the best score beats 0.05](docs/diagrams/p3-infogain.svg)
 
 The heuristic's blind spot: it counts *information*, not *money*. E3 in all 500 cases (even when the extra belief changes nothing) is why P3 pays $35.00 of information cost vs P4's $11.83.
 
@@ -121,18 +74,7 @@ The rigorous policy. For each candidate check it asks a dollar question:
 
 and buys only when **VoI > 0** — information has value only when it can change the action, and that change must save more than the check costs.
 
-```mermaid
-flowchart TB
-    A["Posterior"] --> B["VoI of each pending check"]
-    B --> C{"Any VoI > 0?"}
-    C -->|Yes| D["Buy highest-VoI check<br/>observe · Bayes update"] --> A
-    C -->|No| E["Act on cheapest action"]
-
-    classDef accent fill:#FFF0E8,stroke:#E8590C,color:#1A1A1A;
-    classDef ink fill:#F8F9FA,stroke:#ADB5BD,color:#1A1A1A;
-    class C accent;
-    class A,B,D,E ink;
-```
+![P4 — buy a check only when its value of information exceeds its price](docs/diagrams/p4-voi.svg)
 
 Result: E3 bought in 33.8% of cases, E4 in **0%** — no belief update is worth $33.33 under this cost structure.
 
@@ -148,18 +90,7 @@ Evaluates P0–P4 with the shared harness, prints the headline table, and saves 
 
 Collects every misclassified case per policy and documents the five most expensive ones with a dry-run trace of the belief updates, writing one markdown file per policy to `experiments/failures/`. P4 misclassifies 185 of 500 cases (63.0% accuracy) — the reports show the five most expensive failure cases with their exact belief trajectories.
 
-```mermaid
-flowchart LR
-    A["All 500 cases<br/>per policy"] --> B{"Prediction ≠<br/>ground truth?"}
-    B -->|Yes| C["Rank by realised cost"]
-    C --> D["Top 5 → markdown<br/>with dry-run trace"]
-    B -->|No| E["✓ correct"]
-
-    classDef accent fill:#FFF0E8,stroke:#E8590C,color:#1A1A1A;
-    classDef ink fill:#F8F9FA,stroke:#ADB5BD,color:#1A1A1A;
-    class D accent;
-    class A,B,C,E ink;
-```
+![Failure analysis — collect misclassified cases per policy, rank by realised cost, dry-run and report the top 5](docs/diagrams/failure-pipeline.svg)
 
 ### 3. Fix 1 — what if local reproduction got cheap? `run_e4_cost_whatif.py`
 

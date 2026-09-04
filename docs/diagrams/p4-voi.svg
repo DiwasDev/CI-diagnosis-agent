@@ -28,9 +28,9 @@
       <text x="604" y="213" fill="#7a8399" font-size="8" font-family="'Geist Mono', monospace" text-anchor="middle" letter-spacing="0.06em">RE-CHECK</text>
 
       <!-- editorial callout -->
-      <path d="M 636,612 Q 592,616 552,600" fill="none" stroke="#7a8399" stroke-width="1" stroke-dasharray="2,3"/>
-      <text x="644" y="600" fill="#4f5d75" font-size="14" font-family="'Instrument Serif', serif" font-style="italic">E3 passes in 33.8% of cases; E4 never &#8212;</text>
-      <text x="644" y="620" fill="#4f5d75" font-size="14" font-family="'Instrument Serif', serif" font-style="italic">its VoI is &#8722;$22.87 against a $33.33 price</text>
+      <path d="M 572,612 Q 548,616 540,602" fill="none" stroke="#7a8399" stroke-width="1" stroke-dasharray="2,3"/>
+      <text x="580" y="600" fill="#4f5d75" font-size="13" font-family="'Instrument Serif', serif" font-style="italic">E3 passes in 33.8% of cases; E4 never &#8212;</text>
+      <text x="580" y="620" fill="#4f5d75" font-size="13" font-family="'Instrument Serif', serif" font-style="italic">its VoI is &#8722;$22.87 against a $33.33 price</text>
 
       <!-- nodes -->
       <rect x="368" y="48" width="160" height="56" rx="20" fill="#ffffff" stroke="#2d3142" stroke-width="1"/>

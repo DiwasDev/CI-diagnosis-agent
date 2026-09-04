@@ -57,27 +57,7 @@ Seven mutually exclusive root cause categories. Every CI failure belongs to exac
 
 Hidden states are mapped from the original dataset error_type column.
 
-```mermaid
-
-graph TD
-
-ROOT["CI Failure\<br/>(hidden state unknown)"]
-
-ROOT --> S1["S1 · Source Code Issues\<br/>\<i>Syntax, import, logic errors in src/\</i>"]
-
-ROOT --> S2["S2 · Project Config Issues\<br/>\<i>Corrupt pyproject.toml, bad metadata\</i>"]
-
-ROOT --> S3["S3 · Dependency Failures\<br/>\<i>Unresolvable packages, broken lockfiles\</i>"]
-
-ROOT --> S4["S4 · Static Analysis Failures\<br/>\<i>flake8, mypy, bandit, ruff rejections\</i>"]
-
-ROOT --> S5["S5 · Test Failures\<br/>\<i>AssertionError, fixture failures\</i>"]
-
-ROOT --> S6["S6 · Environment Setup Issues\<br/>\<i>Missing gcc, wrong Python version\</i>"]
-
-ROOT --> S7["S7 · Other\<br/>\<i>Network flakes, OOM, rate limits\</i>"]
-
-```
+![Seven root-cause states, grouped by the action that resolves them](../docs/diagrams/state-tree.svg)
 
 | # | Hidden State | Short Description |
 |---|---|---|
@@ -152,33 +132,7 @@ S7 Other            █                                  1.4%
 
 ## 4. Agent Loop
 
-```mermaid
-
-flowchart TD
-
-A([Start: CI run failed]) --> B[Initialise beliefs\nwith empirical priors]
-
-B --> C{Action\nthreshold\nmet?}
-
-C -- Yes --> ACT[Take Action\nsee §5]
-
-C -- No --> D[Select evidence source\nwith highest EIG\ngiven current beliefs]
-
-D --> E[Observe evidence\nfrom CI run data]
-
-E --> F[Update beliefs\nvia Bayes rule\nnormalise]
-
-F --> G{Any evidence\nsources\nremaining?}
-
-G -- Yes --> C
-
-G -- No --> ESC[Escalate to human\nLLM diagnosis report]
-
-ACT --> END([Done])
-
-ESC --> END
-
-```
+![Agent loop — query the highest-EIG evidence until the action threshold is met or evidence runs out](../docs/diagrams/agent-loop.svg)
 
 **Pseudocode:**
 
@@ -218,21 +172,7 @@ ESCALATE to human with ranked posterior + diagnosis report
 
 ## 5. Action Policy
 
-```mermaid
-
-flowchart TD
-
-CHECK{Posterior\ncheck}
-
-CHECK -- "P(S1) + P(S2) + P(S4) > 37.5%" --> FIX["ACTION: Fix the code\nGenerate patch targeting\nsrc files, config, or lint violations"]
-
-CHECK -- "P(S3) > 37.5%" --> DEP["ACTION: Resolve dependency\nUpdate lockfiles,\nadjust version pins"]
-
-CHECK -- "Neither threshold met\nand evidence remains" --> MORE["Collect next evidence\n(highest EIG)"]
-
-CHECK -- "Neither threshold met\nall evidence exhausted" --> ESC["ESCALATE to human\nLLM diagnosis report\nwith ranked posterior"]
-
-```
+![Action policy — route on the posterior: fix code, fix dependency, gather more evidence, or escalate](../docs/diagrams/action-policy.svg)
 
 **Threshold rationale:**
 
@@ -260,27 +200,7 @@ CHECK -- "Neither threshold met\nall evidence exhausted" --> ESC["ESCALATE to hu
 
 The CI pipeline runs steps in sequence. The step that fails \*first\* reveals which phase the root cause manifested in. Because each phase gates the next (install → build → test → lint), the earliest failure is the strongest structural signal for root cause.
 
-```mermaid
-
-graph LR
-
-CK["Checkout"] --> ENV["Env Setup\n(setup-python)"]
-
-ENV --> INS["Install\n(pip/poetry)"]
-
-INS --> BLD["Build/Compile"]
-
-BLD --> TST["Test\n(pytest)"]
-
-TST --> LNT["Lint/Audit\n(ruff/bandit)"]
-
-INS -. "fails here → A" .-> OBS(["Observed\nOutcome"])
-
-TST -. "fails here → C" .-> OBS
-
-LNT -. "fails here → D" .-> OBS
-
-```
+![E1 — the pipeline step that fails first reveals the root-cause phase](../docs/diagrams/e1-pipeline.svg)
 
 ### How to extract from dataset
 
@@ -400,27 +320,7 @@ The files changed between the failing commit (`sha_fail`) and the fixing commit 
 
 **Key framing:** We observe the \*fix diff\*, not the \*failure diff\*. In live agent use this corresponds to the diff between the head commit and the last known green commit on the same branch — obtainable from GitHub API.
 
-```mermaid
-
-graph TD
-
-DIFF["changed_files\nList of file paths in fix commit"]
-
-DIFF --> CI_F["ci\n.github/, Dockerfile,\n.python-version, \*.yml"]
-
-DIFF --> CFG["config\npyproject.toml, requirements.txt,\npoetry.lock, setup.cfg"]
-
-DIFF --> TST["test\ntests/, test_\*.py,\n\*_test.py"]
-
-DIFF --> DOC["doc\n.rst, .md, .txt"]
-
-DIFF --> SRC["src\n\*.py / \*.pyi\n(not test/config/ci/doc)"]
-
-DIFF --> MIX["mixed\n2+ categories present"]
-
-DIFF --> NON["none\nempty list"]
-
-```
+![E2 — file categories touched by the fix commit](../docs/diagrams/e2-changed-files.svg)
 
 ### How to extract from dataset
 
@@ -863,35 +763,7 @@ In the greedy EIG agent loop, E1 (0.358 bits) is selected first in **100% of cas
 
 
 # Threshold
-```mermaid
-
-flowchart TD
-    A["CI Failure"] --> B["Bayesian Update"]
-    B --> C["Posterior Probabilities"]
-
-    C --> C1["p_code = P(S1)+P(S2)+P(S4)"]
-    C --> C2["p_dep = P(S3)"]
-    C --> C3["p_other = P(S5)+P(S6)+P(S7)"]
-
-    C1 --> D["Calculate Expected Costs"]
-    C2 --> D
-    C3 --> D
-
-    D --> D1["EC(Fix Code) = p_code×8.33 + (1-p_code)×75.07"]
-    D --> D2["EC(Fix Dependency) = p_dep×8.33 + (1-p_dep)×75.07"]
-    D --> D3["EC(Escalate) = 50"]
-
-    D1 --> E{"Lowest Expected Cost?"}
-    D2 --> E
-    D3 --> E
-
-    E -->|Fix Code| F["ACTION: Fix Code"]
-    E -->|Fix Dependency| G["ACTION: Fix Dependency"]
-    E -->|Escalate| H["ACTION: Escalate"]
-
-    I["Break-even threshold\n≈ 37.5%"] -.-> D1
-    I -.-> D2
-```
+![Expected-cost policy — pick the cheapest action, with the break-even threshold at ≈ 37.5%](../docs/diagrams/expected-cost-flow.svg)
 
 
 
