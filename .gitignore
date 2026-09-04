@@ -1,7 +1,6 @@
 # Data files & directories
 data/
 *.parquet
-*.jsonl
 
 # Temporary text files
 data/benchmark_data/temp.txt

@@ -184,13 +184,6 @@ class BenchmarkGenerator:
 
         return cases
 
-    def save_to_jsonl(self, cases: List[TestCase], output_path: Path) -> None:
-        """Save cases to JSONL format (one JSON object per line)."""
-        output_path.parent.mkdir(parents=True, exist_ok=True)
-        with open(output_path, "w") as f:
-            for case in cases:
-                f.write(json.dumps(case.to_dict()) + "\n")
-
     def save_to_json(self, cases: List[TestCase], output_path: Path) -> None:
         """Save cases to JSON format (array of objects)."""
         output_path.parent.mkdir(parents=True, exist_ok=True)
@@ -289,18 +282,15 @@ if __name__ == "__main__":
     generator = BenchmarkGenerator(seed=seed, num_cases=num_cases)
     cases = generator.generate_cases()
 
-    # Save to both formats
+    # Save dataset
     output_dir = Path(__file__).parent.parent / "data" / "benchmark_data"
     output_dir.mkdir(parents=True, exist_ok=True)
 
-    jsonl_path = output_dir / f"benchmark_cases_seed{seed}.jsonl"
     json_path = output_dir / f"benchmark_cases_seed{seed}.json"
 
-    generator.save_to_jsonl(cases, jsonl_path)
     generator.save_to_json(cases, json_path)
 
     print(f"\nSaved {len(cases)} cases to:")
-    print(f"  JSONL: {jsonl_path.relative_to(Path.cwd())}")
     print(f"  JSON:  {json_path.relative_to(Path.cwd())}")
 
     generator.print_summary(cases)

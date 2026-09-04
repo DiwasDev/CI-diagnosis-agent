@@ -13,7 +13,7 @@ from sklearn.metrics import accuracy_score, f1_score, precision_score, recall_sc
 from experiments.constants import ACTION_COSTS, ACTION_LABELS, EVIDENCE_COSTS, STATE_TO_ACTION
 
 PROJECT_ROOT = Path(__file__).resolve().parents[1]
-BENCHMARK_PATH = PROJECT_ROOT / "data" / "benchmark_data" / "benchmark_cases_seed42.jsonl"
+BENCHMARK_PATH = PROJECT_ROOT / "data" / "benchmark_data" / "benchmark_cases_seed42.json"
 
 # Benchmark row keys for each evidence source, mapped to the case keys policies read.
 EVIDENCE_SOURCES = {
@@ -29,7 +29,7 @@ def load_cases(path: Path = BENCHMARK_PATH) -> pd.DataFrame:
 
     Rows without a ground-truth action are excluded, mirroring the notebook.
     """
-    rows = [json.loads(line) for line in path.read_text().splitlines() if line.strip()]
+    rows = json.loads(path.read_text())["cases"]
     cases = pd.DataFrame([_flatten_row(row) for row in rows])
     cases["ground_action"] = cases["ground_truth"].map(STATE_TO_ACTION)
     return cases.dropna(subset=["ground_action"]).reset_index(drop=True)

@@ -30,9 +30,9 @@ def main():
     generator = load_generator()
     per_seed = {}
     for seed in SEEDS:
-        benchmark_path = RESULTS_DIR / f"benchmark_cases_seed{seed}.jsonl"
+        benchmark_path = RESULTS_DIR / f"benchmark_cases_seed{seed}.json"
         benchmark = generator.BenchmarkGenerator(seed=seed, num_cases=500)
-        benchmark.save_to_jsonl(benchmark.generate_cases(), benchmark_path)
+        benchmark.save_to_json(benchmark.generate_cases(), benchmark_path)
         cases = load_cases(benchmark_path)
         summaries, records_by_policy = [], {}
         for policy in make_policies(cases):

@@ -757,7 +757,7 @@ In the greedy EIG agent loop, E1 (0.358 bits) is selected first in **100% of cas
 | EIG(E3) at prior | 0.1201 bits |
 | EIG(E4) at prior | 0.2100 bits (revised E4 table) |
 | Test cases generated | 500 (seed 42, hidden states sampled from §3 priors) |
-| Output file | `data/benchmark_data/benchmark_cases_seed42.jsonl` |
+| Output file | `data/benchmark_data/benchmark_cases_seed42.json` |
 | All evidence | Synthetically sampled from the §6–13 likelihood tables conditioned on `ground_truth_state` |
 
 
