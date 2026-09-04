@@ -406,17 +406,14 @@ The brief decision-theoretic question is: what happens if the world changes? Thr
 The results raised questions the project cannot yet answer.
 
 \begin{enumerate}
-\item Acting and buying are currently two separate layers (P4's VoI rule buys; the derived threshold acts). Can they be unified into a single expected-cost stopping rule --- and would that get Fix 3's 7.0\% escalation at P4's \$35.01 cost?
-\item What is the break-even price of E4 --- the maximum price at which its VoI turns positive per case? Fix 1 tested two points (\$33.33: never bought; \$0.10: bought in 38\%); the whole curve between them would tell an automation team exactly what a hosted-repro feature is worth.
 \item How should an agent behave when the true failure is a \emph{combination} of states its mutually exclusive list cannot express, given that the failure analysis shows the posterior then concentrates confidently on one wrong cause?
-\item Can the likelihood tables be learned from the agent's own resolved cases --- every escalation is a human solving the problem the agent could not, i.e., a free training label --- instead of being assumed or counted once from a static dataset?
 \item Does a more granular hidden-state list, by itself, ensure that the root cause of a complex CI run can be caught? The failure analysis suggests not: the dominant errors came not from missing states but from coarse evidence unable to separate states already in the list (Section~\ref{sec:failures}), which suggests evidence granularity matters at least as much as state granularity.
 \item What is the right policy response once the JSD monitor fires? The drift alarm detects that the world moved (Section~\ref{sec:generalization}), but the agent has no measured rule for how much to widen its uncertainty band --- or how quickly to re-estimate priors --- while the alarm is active.
 \end{enumerate}
 
 \section*{AI-Use Statement}
 
-I used Claude to find technical terms for the CI-diagnosis agent, to explain KL divergence and Jensen--Shannon divergence in simple language, and to debug the simulation code. I wrote the hidden-state model, the likelihood tables --- with the help of the dataset for the two empirical evidences (E1, E2) and as assumed values for E3 and E4 --- and the cost assumptions myself. I ran the simulation myself; the results in Table~\ref{tab:results} are from 500 simulated cases. I verified the entropy and KL calculations by hand for all states in Section~\ref{sec:info} before trusting the code. The abstract was drafted with AI assistance and rewritten by me.
+I used AI to find technical terms for the CI-diagnosis agent, recommend me relevant communities to discuss, to explain KL divergence and Jensen--Shannon divergence in simple language, and to debug the simulation code. I wrote the hidden-state model, the likelihood tables --- with the help of the dataset for the two empirical evidences (E1, E2) and as assumed values for E3 and E4 --- and the cost assumptions myself. I ran the simulation with a coding agent and I verified the results; the results in Table~\ref{tab:results} are from 500 simulated cases. I verified the entropy and KL calculations for all states in Section~\ref{sec:info} before trusting the code. The abstract was drafted with AI assistance and rewritten by me.
 
 \bibliographystyle{named}
 \bibliography{references}
