@@ -281,7 +281,7 @@ F     │   M     H     L     M     H     L     L
 
 2. **C dominates 5 of 7 states** — Makes C a weak discriminator. Many CI setups surface install/build errors inside the test runner job name (e.g., named "Run tests"), not a dedicated install step.
 
-3. **F captures 21.6% of S4** — Tools like `isort`, `yapf`, `tox`, `pyupgrade` are static analysis tools not in the D keyword list. Expanding that list is a V2 improvement.
+3. **F captures 21.6% of S4** — Tools like `isort`, `yapf`, `tox`, `pyupgrade` are static analysis tools not in the D keyword list. 
 
 4. **S3 shows D=33.3%** — Many dependency failures surface at import time during pytest collection, not during `pip install`. E1 alone cannot cleanly separate S3 from S4.
 
@@ -590,8 +590,7 @@ P(S1) + P(S2) + P(S4) = 0.0092 + 0.0033 + 0.8494 = 0.8619  >  0.60
 
 2. **`mixed` dominates E2 for many states.** For monorepos where every PR touches many file types, E2's effective EIG drops toward zero. In those environments, deprioritise or drop E2.
 
-3. **E1 step naming is noisy.** The F (Other/Ambiguous) bucket captures 21.6% of S4 cases because tools like `isort`, `tox`, `yapf`, `pyupgrade` are not in the D keyword list. Expanding the keyword list is a V2 improvement.
-
+3. **E1 step naming is noisy.** The F (Other/Ambiguous) bucket captures 21.6% of S4 cases because tools like `isort`, `tox`, `yapf`, `pyupgrade` are not in the D keyword list. 
 4. **The first-failed-step assumption breaks for parallel jobs.** When lint and test run in separate parallel jobs and both fail, there is no causal ordering. The extraction rule picks an arbitrary job, introducing noise.
 
 5. **S1 and S7 likelihoods are dominated by smoothing.** With only 15 (S1) and 8 (S7) rows, most probability values are influenced more by the k=1 pseudo-counts than by empirical data. Treat these rows with caution.
@@ -600,25 +599,6 @@ P(S1) + P(S2) + P(S4) = 0.0092 + 0.0033 + 0.8494 = 0.8619  >  0.60
 
 7. **S3 vs S6 confound is partially unresolved.** Both states produce install-phase failures (E1=A) and mixed fix diffs (E2=mixed). E1=A is a mild positive for S3 (16.9%) vs S6 (5.3%). Neither source alone is definitive for this pair.
 
----
-
-## 11. TODO — V2 Improvements
-
-- **[V2] Formal cost matrix.** Define `C(action, true_state)`. Replace fixed thresholds with the optimal decision: `best_action = argmin_a sum_s [ P(s|D) \* C(a, s) ]`.
-
-- **[V2] Convergence criterion.** Stop when `max(posterior) > threshold` OR `EIG of remaining evidence < min_gain`.
-
-- **[V2] More action targets.** Add: generate test fix suggestion (S5), generate environment fix (S6), per-state typed escalation report (S7).
-
-- **[V2] Address conditional independence violation.** Model joint likelihood `P(E1, E2 | S)` empirically. Requires a 7 × 6 × 7 = 294-cell table — feasible with 567 rows but sparse for rare states.
-
-- **[V2] Expand E1 keyword list.** Add `isort`, `tox`, `yapf`, `pyright`, `pyupgrade`, `codestyle`, `semgrep`, `safety` to bucket D. Would reduce F rate from 21.6% to ~5% for S4.
-
-- **[V2] Weighted Laplace smoothing.** Replace uniform k=1 with k proportional to prior prevalence. Better handles the imbalance (S7: 8 rows vs S4: 236 rows).
-
-- **[V2] Validate E2 extraction on raw diffs.** Run file-classification logic on the raw `diff` column and compare against `primary_hidden_state` labels. Measure per-outcome precision/recall before deploying live.
-
----
 
 ## 12. Audit Record
 
