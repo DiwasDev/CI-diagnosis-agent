@@ -13,17 +13,7 @@ Accounts used: u/Elegant_Quantity_583, u/No-Cheetah-4745. Removed posts kept in 
 | r/LLMDevs (sanity check) | ✅ [live](https://www.reddit.com/r/LLMDevs/comments/1vv3370/sanity_check_for_ci_diagnosis_agent_hidden_states/) | Sanity-check hidden states + priors (375 paper cases). How to build likelihoods / test cases? | Cheaper to just prompt Claude? Build `P(log fingerprint \| state)`: cluster logs by first-failing step, hand-label; synthetic test = swap smoking-gun line, posterior must flip | Just-prompting is static; this agent iterates and fetches evidence only when its cost < cost of an uncertain report | — |
 | r/LLMDevs (cost matrix) | ✅ [live](https://www.reddit.com/r/LLMDevs/comments/1w2hecn/does_this_cost_matrix_make_sense_for_a_ci_failure/) ([r/cicd crosspost](https://www.reddit.com/r/cicd/comments/1w2hf9e/does_this_cost_matrix_make_sense_for_a_ci_failure/)) | Escalate $50 / correct fix $8.33 / wrong fix $75.07 — is flat escalation and flat wrong-fix too simplistic? | Flat $50 undercounts slow failure modes. Flat is fine unless it masks a fat tail (shared config, cross-pipeline); use blast-radius override; only 1–2 states need distributions | — | No numeric change; fat-tailed failures need special routing |
 | r/agenticAI (repost) | ⚠️ not indexed | Same cost matrix | Split cost into diagnosis time / availability / blast radius. Log evidence, margin, action, outcome; calibrate from incidents; escalate when margin narrow | — | Decision logging + calibration adopted |
-
-## Design changes (cumulative)
-
-1. Evidence sources: changed files, local reproducibility, rerun-same-test, first-failing-step fingerprint.
-2. Stopping rule: sure only if reproduces locally on demand.
-3. Hidden states: removed `H_shared_root_cause`; env fault → container-image + infra-provisioning; added `H_timing_race`, `H_human_error`, `H_stale_cache`; `H_flaky` split in-test / around-test.
-4. Architecture: two agents — human-error checker, then diagnosis agent.
-5. Joint hypotheses: only two co-occurrence edges kept.
-6. Confidence gate: per-hypothesis evidence checklist; act only when diagnosis confidence and evidence completeness both high.
-7. Likelihoods: `P(log fingerprint | state)` from clustered, hand-labeled logs; posterior-flip synthetic tests; abstain when top-2 within factor ~2.
-8. Cost model: flat costs except fat-tailed states → blast-radius escalate override; log decisions, calibrate from incidents.
+two agents — human-error checker, then diagnosis agent.
 
 ---
 
